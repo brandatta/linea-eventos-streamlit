@@ -121,7 +121,6 @@ elif st.session_state.page == "splash":
         st.success("✅ Evento registrado correctamente.")
         st.write("Redirigiendo al inicio en 3 segundos...")
         time.sleep(3)
-        st.experimental_rerun()
     else:
         st.session_state.clear()
         st.session_state.page = "linea"
