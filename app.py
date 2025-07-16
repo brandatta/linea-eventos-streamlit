@@ -1,5 +1,6 @@
 import streamlit as st
 import datetime
+import time
 
 # Inicialización del estado
 if 'page' not in st.session_state:
@@ -112,10 +113,12 @@ elif st.session_state.page == "ticket":
         st.session_state.clear()
         go_to("linea")
 
-# Página: Splash
+# Página: Splash (con delay antes de redireccionar)
 elif st.session_state.page == "splash":
-    st.success("Evento registrado correctamente.")
-    st.write("Redirigiendo al inicio...")
+    st.success("✅ Evento registrado correctamente.")
+    st.write("Redirigiendo al inicio en 3 segundos...")
+
+    # Solo esperar y luego redirigir una vez
+    time.sleep(3)
     st.session_state.clear()
     st.experimental_rerun()
-
