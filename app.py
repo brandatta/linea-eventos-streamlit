@@ -12,6 +12,21 @@ def go_to(page):
 
 st.title("App Registro de Eventos")
 
+# CSS personalizado para achicar los headers
+st.markdown("""
+    <style>
+    h1 {
+        font-size: 22px !important;
+    }
+    h2 {
+        font-size: 20px !important;
+    }
+    h3 {
+        font-size: 18px !important;
+    }
+    </style>
+""", unsafe_allow_html=True)
+
 # Página: Seleccionar Línea
 if st.session_state.page == "linea":
     st.header("Selecciona una línea")
