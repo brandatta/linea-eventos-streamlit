@@ -107,4 +107,6 @@ elif st.session_state.page == "ticket":
 elif st.session_state.page == "splash":
     st.title("Evento Registrado")
     st.write("Redirigiendo en 5 segundos...")
+    if st.button("Volver al inicio"):
+    st.session_state.clear()
     st.experimental_rerun()
