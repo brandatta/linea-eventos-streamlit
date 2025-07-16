@@ -10,13 +10,15 @@ if 'page' not in st.session_state:
 def go_to(page):
     st.session_state.page = page
 
-st.title("App Registro de Eventos")
-
-# CSS personalizado para achicar los headers
+# CSS personalizado para achicar headers y reducir margen superior
 st.markdown("""
     <style>
     h1 {
         font-size: 22px !important;
+        margin-bottom: 0.5rem !important;
+    }
+    .block-container {
+        padding-top: 1rem !important;
     }
     h2 {
         font-size: 20px !important;
@@ -26,6 +28,8 @@ st.markdown("""
     }
     </style>
 """, unsafe_allow_html=True)
+
+st.title("App Registro de Eventos")
 
 # Página: Seleccionar Línea
 if st.session_state.page == "linea":
