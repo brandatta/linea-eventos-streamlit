@@ -2,15 +2,14 @@ import streamlit as st
 import datetime
 import time
 
-# CSS personalizado para achicar títulos y reducir margen superior
+# Reducir margen superior y tamaño de títulos
 st.markdown("""
     <style>
-    .title {
-        font-size: 24px;
-        margin-bottom: 0.5rem;
-    }
     .block-container {
         padding-top: 1rem;
+    }
+    h1, h2, h3 {
+        font-size: 1.2rem !important;
     }
     </style>
 """, unsafe_allow_html=True)
@@ -23,8 +22,7 @@ if 'page' not in st.session_state:
 def go_to(page):
     st.session_state.page = page
 
-# Título
-st.markdown('<h1 class="title">App Registro de Eventos</h1>', unsafe_allow_html=True)
+st.title("App Registro de Eventos")
 
 # Página: Seleccionar Línea
 if st.session_state.page == "linea":
@@ -86,13 +84,11 @@ elif st.session_state.page == "form":
         f"**Componente:** {st.session_state.data['componente']}"
     )
 
-    start_time_str = ""
-    end_time_str = ""
-    start_dt = end_dt = None
-
     if tipo == "interrupcion":
-        start_time_str = st.text_input("Hora de inicio (HH:MM)", placeholder="ej. 14:30")
-        end_time_str = st.text_input("Hora de fin (HH:MM)", placeholder="ej. 15:10")
+        start_time_str = st.text_input("Hora de inicio (HH:MM)", placeholder="Ej: 08:30")
+        end_time_str = st.text_input("Hora de fin (HH:MM)", placeholder="Ej: 09:15")
+    else:
+        start_time_str = end_time_str = None
 
     comentario = st.text_area("Describe el evento")
 
@@ -109,7 +105,38 @@ elif st.session_state.page == "form":
                 st.stop()
 
         st.session_state.data.update({
-            "start": start_time_str if start_dt else None,
-            "end": end_time_str if end_dt else None,
+            "start": start_time_str if tipo == "interrupcion" else None,
+            "end": end_time_str if tipo == "interrupcion" else None,
             "minutos": minutos,
-            "comentario":
+            "comentario": comentario,
+            "timestamp": str(datetime.datetime.now())
+        })
+        go_to("ticket")
+
+# Página: Ticket
+elif st.session_state.page == "ticket":
+    data = st.session_state.data
+    st.subheader("Ticket")
+    st.write(f"**Fecha y hora:** {data['timestamp']}")
+    st.write(f"**Línea:** {data['linea']}")
+    st.write(f"**Motivo:** {data['motivo']}")
+    st.write(f"**Submotivo:** {data['submotivo']}")
+    st.write(f"**Componente:** {data['componente']}")
+    st.write(f"**Minutos:** {data.get('minutos', '-')}")
+    st.write(f"**Comentario:** {data['comentario']}")
+    st.write(f"**Usuario:** {data['user']}")
+
+    if st.button("Confirmar"):
+        go_to("splash")
+    if st.button("Cancelar"):
+        st.session_state.clear()
+        st.session_state.page = "linea"
+
+# Página: Splash (sin experimental_rerun)
+elif st.session_state.page == "splash":
+    st.success("✅ Evento registrado correctamente.")
+    st.write("Volver al inicio:")
+    if st.button("Volver"):
+        st.session_state.clear()
+        st.session_state.page = "linea"
+
