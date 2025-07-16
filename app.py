@@ -2,24 +2,6 @@ import streamlit as st
 import datetime
 import time
 
-# ✅ Estilo reducido
-st.markdown("""
-    <style>
-    .block-container {
-        padding-top: 0.1rem !important;
-    }
-    h1, h2, h3 {
-        font-size: 20px !important;
-        margin-bottom: 0.1rem !important;
-        margin-top: 0.1rem !important;
-    }
-    button[kind="primary"], textarea, .stTextInput>div>input, .stSelectbox>div {
-        margin-top: 0.2rem !important;
-        margin-bottom: 0.2rem !important;
-    }
-    </style>
-""", unsafe_allow_html=True)
-
 # Inicialización del estado
 if 'page' not in st.session_state:
     st.session_state.page = 'linea'
@@ -27,6 +9,19 @@ if 'page' not in st.session_state:
 
 def go_to(page):
     st.session_state.page = page
+
+# Estilos generales para reducir márgenes y achicar títulos
+st.markdown("""
+    <style>
+    .block-container {
+        padding-top: 1rem;
+    }
+    h1, h2, h3 {
+        font-size: 1.4rem !important;
+        margin-bottom: 0.5rem;
+    }
+    </style>
+""", unsafe_allow_html=True)
 
 st.title("App Registro de Eventos")
 
@@ -91,8 +86,11 @@ elif st.session_state.page == "form":
     )
 
     if tipo == "interrupcion":
-        start = st.time_input("Hora de inicio")
-        end = st.time_input("Hora de fin")
+        now = datetime.datetime.now().replace(second=0, microsecond=0)
+        start_dt = st.datetime_input("Hora de inicio", value=now)
+        end_dt = st.datetime_input("Hora de fin", value=now)
+        start = start_dt.time()
+        end = end_dt.time()
     else:
         start = end = None
 
@@ -100,12 +98,9 @@ elif st.session_state.page == "form":
 
     if st.button("Confirmar"):
         minutos = None
-        if tipo == "interrupcion":
-            now = datetime.datetime.now().replace(second=0, microsecond=0)
-            start_dt = st.datetime_input("Hora de inicio", value=now)
-            end_dt = st.datetime_input("Hora de fin", value=now)
-            start = start_dt.time()
-            end = end_dt.time()
+        if tipo == "interrupcion" and start and end:
+            minutos = int((datetime.datetime.combine(datetime.date.today(), end) -
+                           datetime.datetime.combine(datetime.date.today(), start)).total_seconds() / 60)
         st.session_state.data.update({
             "start": str(start),
             "end": str(end),
@@ -134,15 +129,14 @@ elif st.session_state.page == "ticket":
         st.session_state.clear()
         st.session_state.page = "linea"
 
-# Página: Splash (sin rerun)
+# Página: Splash (versión segura)
 elif st.session_state.page == "splash":
     if 'splash_shown' not in st.session_state:
         st.session_state.splash_shown = True
         st.success("✅ Evento registrado correctamente.")
         st.write("Redirigiendo al inicio en 3 segundos...")
         time.sleep(3)
+    else:
         st.session_state.clear()
         st.session_state.page = "linea"
-    else:
-        go_to("linea")
 
