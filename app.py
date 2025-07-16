@@ -111,14 +111,18 @@ elif st.session_state.page == "ticket":
         go_to("splash")
     if st.button("Cancelar"):
         st.session_state.clear()
-        go_to("linea")
+        st.session_state.page = "linea"
+        st.experimental_rerun()
 
-# Página: Splash (con delay antes de redireccionar)
+# Página: Splash (versión segura)
 elif st.session_state.page == "splash":
-    st.success("✅ Evento registrado correctamente.")
-    st.write("Redirigiendo al inicio en 3 segundos...")
-
-    # Solo esperar y luego redirigir una vez
-    time.sleep(3)
-    st.session_state.clear()
-    st.experimental_rerun()
+    if 'splash_shown' not in st.session_state:
+        st.session_state.splash_shown = True
+        st.success("✅ Evento registrado correctamente.")
+        st.write("Redirigiendo al inicio en 3 segundos...")
+        time.sleep(3)
+        st.experimental_rerun()
+    else:
+        st.session_state.clear()
+        st.session_state.page = "linea"
+        st.experimental_rerun()
