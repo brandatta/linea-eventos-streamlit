@@ -6,9 +6,10 @@ if "page" not in st.session_state:
     st.session_state.page = "linea"
     st.session_state.data = {}
 
-# Navegación entre páginas
+# Navegación entre páginas con rerun inmediato
 def go_to(page):
     st.session_state.page = page
+    st.experimental_rerun()
 
 # Página: Seleccionar línea
 if st.session_state.page == "linea":
@@ -102,11 +103,12 @@ elif st.session_state.page == "ticket":
         go_to("splash")
     if st.button("Cancelar"):
         st.session_state.clear()
+        st.experimental_rerun()
 
 # Página: Splash
 elif st.session_state.page == "splash":
     st.title("Evento Registrado")
     st.write("Redirigiendo en 5 segundos...")
     if st.button("Volver al inicio"):
-       st.session_state.clear()
-       st.experimental_rerun()
+        st.session_state.clear()
+        st.experimental_rerun()
