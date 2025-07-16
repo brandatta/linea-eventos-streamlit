@@ -100,9 +100,12 @@ elif st.session_state.page == "form":
 
     if st.button("Confirmar"):
         minutos = None
-        if tipo == "interrupcion" and start and end:
-            minutos = int((datetime.datetime.combine(datetime.date.today(), end) -
-                           datetime.datetime.combine(datetime.date.today(), start)).total_seconds() / 60)
+        if tipo == "interrupcion":
+            now = datetime.datetime.now().replace(second=0, microsecond=0)
+            start_dt = st.datetime_input("Hora de inicio", value=now)
+            end_dt = st.datetime_input("Hora de fin", value=now)
+            start = start_dt.time()
+            end = end_dt.time()
         st.session_state.data.update({
             "start": str(start),
             "end": str(end),
