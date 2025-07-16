@@ -2,35 +2,25 @@ import streamlit as st
 import datetime
 import time
 
-# 🔧 CSS para reducir márgenes y fuente
+# ✅ Estilo reducido
 st.markdown("""
     <style>
     .block-container {
-        padding-top: 0.5rem !important;
+        padding-top: 0.1rem !important;
     }
-    h1 {
-        font-size: 22px !important;
-        margin-bottom: 0.3rem !important;
-    }
-    h2 {
+    h1, h2, h3 {
         font-size: 20px !important;
+        margin-bottom: 0.1rem !important;
+        margin-top: 0.1rem !important;
+    }
+    button[kind="primary"], textarea, .stTextInput>div>input, .stSelectbox>div {
+        margin-top: 0.2rem !important;
         margin-bottom: 0.2rem !important;
-    }
-    h3 {
-        font-size: 18px !important;
-        margin-bottom: 0.2rem !important;
-    }
-    button[kind="primary"] {
-        margin-top: 0.3rem !important;
-        margin-bottom: 0.3rem !important;
-    }
-    textarea, .stTextInput>div>input, .stSelectbox>div {
-        margin-bottom: 0.5rem !important;
     }
     </style>
 """, unsafe_allow_html=True)
 
-# 🧠 Inicialización del estado
+# Inicialización del estado
 if 'page' not in st.session_state:
     st.session_state.page = 'linea'
     st.session_state.data = {}
@@ -142,7 +132,7 @@ elif st.session_state.page == "ticket":
         st.session_state.page = "linea"
         st.experimental_rerun()
 
-# Página: Splash
+# Página: Splash (versión segura)
 elif st.session_state.page == "splash":
     if 'splash_shown' not in st.session_state:
         st.session_state.splash_shown = True
