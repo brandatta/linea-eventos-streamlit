@@ -130,16 +130,16 @@ elif st.session_state.page == "ticket":
     if st.button("Cancelar"):
         st.session_state.clear()
         st.session_state.page = "linea"
-        st.experimental_rerun()
 
-# Página: Splash (versión segura)
+# Página: Splash (sin rerun)
 elif st.session_state.page == "splash":
     if 'splash_shown' not in st.session_state:
         st.session_state.splash_shown = True
         st.success("✅ Evento registrado correctamente.")
         st.write("Redirigiendo al inicio en 3 segundos...")
         time.sleep(3)
-    else:
         st.session_state.clear()
         st.session_state.page = "linea"
-        st.experimental_rerun()
+    else:
+        go_to("linea")
+
