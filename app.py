@@ -6,17 +6,13 @@ if "page" not in st.session_state:
     st.session_state.page = "linea"
     st.session_state.data = {}
 
-# Navegación entre páginas
-def go_to(page):
-    st.session_state.page = page
-
 # Página: Seleccionar línea
 if st.session_state.page == "linea":
     st.title("Selecciona una línea")
     for num in [1, 2, 3]:
         if st.button(f"Línea {num}"):
             st.session_state.data["linea"] = f"Linea {num}"
-            st.session_state.page = "user"
+            st.session_state.next_page = "user"
 
 # Página: Seleccionar usuario
 elif st.session_state.page == "user":
@@ -24,7 +20,7 @@ elif st.session_state.page == "user":
     user = st.selectbox("Usuario", ["", "usuario1", "usuario2", "usuario3"])
     if st.button("Continuar") and user:
         st.session_state.data["user"] = user
-        st.session_state.page = "motivo"
+        st.session_state.next_page = "motivo"
 
 # Página: Seleccionar motivo
 elif st.session_state.page == "motivo":
@@ -32,7 +28,7 @@ elif st.session_state.page == "motivo":
     for motivo in ["Avería", "Rotura", "Fallo eléctrico"]:
         if st.button(motivo):
             st.session_state.data["motivo"] = motivo
-            st.session_state.page = "submotivo"
+            st.session_state.next_page = "submotivo"
 
 # Página: Seleccionar submotivo
 elif st.session_state.page == "submotivo":
@@ -40,7 +36,7 @@ elif st.session_state.page == "submotivo":
     for sub in ["Motor", "Sensor", "Panel"]:
         if st.button(sub):
             st.session_state.data["submotivo"] = sub
-            st.session_state.page = "componente"
+            st.session_state.next_page = "componente"
 
 # Página: Seleccionar componente
 elif st.session_state.page == "componente":
@@ -48,17 +44,17 @@ elif st.session_state.page == "componente":
     for comp in ["PLC", "Tornillo", "Interruptor"]:
         if st.button(comp):
             st.session_state.data["componente"] = comp
-            st.session_state.page = "option"
+            st.session_state.next_page = "option"
 
 # Página: Seleccionar tipo
 elif st.session_state.page == "option":
     st.title(f"Selecciona una opción para {st.session_state.data['linea']}")
     if st.button("Interrupción"):
         st.session_state.data["tipo"] = "interrupcion"
-        st.session_state.page = "form"
+        st.session_state.next_page = "form"
     if st.button("Novedad"):
         st.session_state.data["tipo"] = "novedad"
-        st.session_state.page = "form"
+        st.session_state.next_page = "form"
 
 # Página: Formulario evento
 elif st.session_state.page == "form":
@@ -85,7 +81,7 @@ elif st.session_state.page == "form":
             "comentario": comentario,
             "timestamp": str(datetime.datetime.now())
         })
-        st.session_state.page = "ticket"
+        st.session_state.next_page = "ticket"
 
 # Página: Ticket
 elif st.session_state.page == "ticket":
@@ -99,9 +95,10 @@ elif st.session_state.page == "ticket":
     st.write(f"**Usuario:** {data['user']}")
 
     if st.button("Confirmar"):
-        st.session_state.page = "splash"
+        st.session_state.next_page = "splash"
     if st.button("Cancelar"):
         st.session_state.clear()
+        st.experimental_rerun()
 
 # Página: Splash
 elif st.session_state.page == "splash":
@@ -109,3 +106,10 @@ elif st.session_state.page == "splash":
     st.write("Redirigiendo en 5 segundos...")
     if st.button("Volver al inicio"):
         st.session_state.clear()
+        st.experimental_rerun()
+
+# Procesar navegación pendiente al final
+if "next_page" in st.session_state:
+    st.session_state.page = st.session_state.next_page
+    del st.session_state.next_page
+    st.experimental_rerun()
