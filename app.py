@@ -2,32 +2,41 @@ import streamlit as st
 import datetime
 import time
 
-# Inicialización del estado
+# 🔧 CSS para reducir márgenes y fuente
+st.markdown("""
+    <style>
+    .block-container {
+        padding-top: 0.5rem !important;
+    }
+    h1 {
+        font-size: 22px !important;
+        margin-bottom: 0.3rem !important;
+    }
+    h2 {
+        font-size: 20px !important;
+        margin-bottom: 0.2rem !important;
+    }
+    h3 {
+        font-size: 18px !important;
+        margin-bottom: 0.2rem !important;
+    }
+    button[kind="primary"] {
+        margin-top: 0.3rem !important;
+        margin-bottom: 0.3rem !important;
+    }
+    textarea, .stTextInput>div>input, .stSelectbox>div {
+        margin-bottom: 0.5rem !important;
+    }
+    </style>
+""", unsafe_allow_html=True)
+
+# 🧠 Inicialización del estado
 if 'page' not in st.session_state:
     st.session_state.page = 'linea'
     st.session_state.data = {}
 
 def go_to(page):
     st.session_state.page = page
-
-# CSS personalizado para achicar headers y reducir margen superior
-st.markdown("""
-    <style>
-    h1 {
-        font-size: 22px !important;
-        margin-bottom: 0.5rem !important;
-    }
-    .block-container {
-        padding-top: 1rem !important;
-    }
-    h2 {
-        font-size: 20px !important;
-    }
-    h3 {
-        font-size: 18px !important;
-    }
-    </style>
-""", unsafe_allow_html=True)
 
 st.title("App Registro de Eventos")
 
@@ -133,7 +142,7 @@ elif st.session_state.page == "ticket":
         st.session_state.page = "linea"
         st.experimental_rerun()
 
-# Página: Splash (versión segura)
+# Página: Splash
 elif st.session_state.page == "splash":
     if 'splash_shown' not in st.session_state:
         st.session_state.splash_shown = True
