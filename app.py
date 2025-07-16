@@ -2,6 +2,20 @@ import streamlit as st
 import datetime
 import time
 
+# Reducir márgenes y achicar títulos
+st.markdown("""
+    <style>
+        .block-container {
+            padding-top: 1rem;
+            padding-bottom: 1rem;
+        }
+        h1, h2, h3, h4 {
+            font-size: 1.2rem !important;
+            margin-bottom: 0.5rem;
+        }
+    </style>
+""", unsafe_allow_html=True)
+
 # Inicialización del estado
 if 'page' not in st.session_state:
     st.session_state.page = 'linea'
@@ -9,19 +23,6 @@ if 'page' not in st.session_state:
 
 def go_to(page):
     st.session_state.page = page
-
-# Estilos generales para reducir márgenes y achicar títulos
-st.markdown("""
-    <style>
-    .block-container {
-        padding-top: 1rem;
-    }
-    h1, h2, h3 {
-        font-size: 1.4rem !important;
-        margin-bottom: 0.5rem;
-    }
-    </style>
-""", unsafe_allow_html=True)
 
 st.title("App Registro de Eventos")
 
@@ -86,21 +87,20 @@ elif st.session_state.page == "form":
     )
 
     if tipo == "interrupcion":
-        now = datetime.datetime.now().replace(second=0, microsecond=0)
-        start_dt = st.datetime_input("Hora de inicio", value=now)
-        end_dt = st.datetime_input("Hora de fin", value=now)
-        start = start_dt.time()
-        end = end_dt.time()
+        fecha_evento = st.date_input("Fecha del evento", value=datetime.date.today())
+        start = st.time_input("Hora de inicio")
+        end = st.time_input("Hora de fin")
     else:
-        start = end = None
+        start = end = fecha_evento = None
 
     comentario = st.text_area("Describe el evento")
 
     if st.button("Confirmar"):
         minutos = None
-        if tipo == "interrupcion" and start and end:
-            minutos = int((datetime.datetime.combine(datetime.date.today(), end) -
-                           datetime.datetime.combine(datetime.date.today(), start)).total_seconds() / 60)
+        if tipo == "interrupcion" and start and end and fecha_evento:
+            dt_start = datetime.datetime.combine(fecha_evento, start)
+            dt_end = datetime.datetime.combine(fecha_evento, end)
+            minutos = int((dt_end - dt_start).total_seconds() / 60)
         st.session_state.data.update({
             "start": str(start),
             "end": str(end),
@@ -129,14 +129,12 @@ elif st.session_state.page == "ticket":
         st.session_state.clear()
         st.session_state.page = "linea"
 
-# Página: Splash (versión segura)
+# Página: Splash
 elif st.session_state.page == "splash":
     if 'splash_shown' not in st.session_state:
         st.session_state.splash_shown = True
         st.success("✅ Evento registrado correctamente.")
         st.write("Redirigiendo al inicio en 3 segundos...")
         time.sleep(3)
-    else:
-        st.session_state.clear()
-        st.session_state.page = "linea"
-
+    st.session_state.clear()
+    st.session_state.page = "linea"
