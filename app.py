@@ -40,7 +40,7 @@ elif st.session_state.page == "user":
         st.session_state.data['user'] = user
         go_to("motivo")
 
-# Página: Seleccionar Motivo
+# Página: Seleccionar Motivo (actualizado con dropdown)
 elif st.session_state.page == "motivo":
     st.header("Selecciona un motivo")
     motivos = [
@@ -62,10 +62,10 @@ elif st.session_state.page == "motivo":
         "FUERA DE PASO OPERATIVO B",
         "FALTA DE INSUMOS DE DEPOSITO"
     ]
-    for motivo in motivos:
-        if st.button(motivo):
-            st.session_state.data['motivo'] = motivo
-            go_to("submotivo")
+    selected_motivo = st.selectbox("Motivo", [""] + motivos)
+    if selected_motivo and st.button("Continuar"):
+        st.session_state.data['motivo'] = selected_motivo
+        go_to("submotivo")
 
 # Página: Seleccionar Submotivo
 elif st.session_state.page == "submotivo":
