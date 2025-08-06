@@ -43,7 +43,26 @@ elif st.session_state.page == "user":
 # Página: Seleccionar Motivo
 elif st.session_state.page == "motivo":
     st.header("Selecciona un motivo")
-    for motivo in ["Avería", "Rotura", "Fallo eléctrico"]:
+    motivos = [
+        "CAMBIO DE LOTE",
+        "ROTURA DE AMPOLLAS",
+        "MAL CIERRE DE ESTUCHES",
+        "OTROS (GENERAL)",
+        "OTROS (CARGADORES)",
+        "OTROS (ESTUCHADORA)",
+        "CHUPETES",
+        "OTROS (KETAN)",
+        "BAJADA DE BLISTER",
+        "PROBLEMA DE TRAZABILIDAD",
+        "BAJADA PROSPECTOS",
+        "ERROR SISTEMA LIXIS",
+        "SISTEMA DE VISIÓN",
+        "CODIFICADO WOLKE",
+        "OTROS (BLISTERA)",
+        "FUERA DE PASO OPERATIVO B",
+        "FALTA DE INSUMOS DE DEPOSITO"
+    ]
+    for motivo in motivos:
         if st.button(motivo):
             st.session_state.data['motivo'] = motivo
             go_to("submotivo")
@@ -132,11 +151,10 @@ elif st.session_state.page == "ticket":
         st.session_state.clear()
         st.session_state.page = "linea"
 
-# Página: Splash (sin experimental_rerun)
+# Página: Splash
 elif st.session_state.page == "splash":
     st.success("✅ Evento registrado correctamente.")
     st.write("Volver al inicio:")
     if st.button("Volver"):
         st.session_state.clear()
         st.session_state.page = "linea"
-
