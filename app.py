@@ -421,6 +421,37 @@ elif st.session_state.page == "dashboard":
     with c_k4:
         st.markdown('<div class="kpi-card"><div class="kpi-title">Novedades</div>'
                     f'<div class="kpi-value">{novedades}</div></div>', unsafe_allow_html=True)
+            # —— Pie chart: minutos de paro por línea (solo interrupciones) ——
+    st.subheader("Minutos de paro por línea")
+
+    if df.empty:
+        st.info("No hay datos para graficar con los filtros actuales.")
+    else:
+        # asegurar que 'minutos' sea numérico
+        df_g = df.copy()
+        df_g["minutos"] = pd.to_numeric(df_g["minutos"], errors="coerce").fillna(0)
+
+        # filtrar solo interrupciones
+        df_pie = df_g[df_g["tipo"] == "interrupcion"].groupby("linea", as_index=False)["minutos"].sum()
+
+        if df_pie.empty or df_pie["minutos"].sum() == 0:
+            st.info("No hay minutos de interrupción para graficar con los filtros actuales.")
+        else:
+            import plotly.express as px
+
+            fig = px.pie(
+                df_pie,
+                names="linea",
+                values="minutos",
+                hole=0.4,
+                title="Distribución de minutos de paro por línea"
+            )
+            # etiquetas adentro con porcentaje y minutos
+            fig.update_traces(textposition="inside", texttemplate="%{label}<br>%{percent:.1%} (%{value}m)")
+            # layout responsive al ancho del contenedor
+            fig.update_layout(margin=dict(l=0, r=0, t=40, b=0))
+
+            st.plotly_chart(fig, use_container_width=True)
 
     st.subheader("Tabla de eventos")
     if df.empty:
