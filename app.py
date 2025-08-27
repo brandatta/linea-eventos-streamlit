@@ -257,11 +257,12 @@ elif st.session_state.page == "confirmacion":
           display: grid; place-items: center;
         }}
         .mp-card {{
-          width: 420px;                  /* modal compacto */
+          width: 540px;                  /* más ancho => menos gris alrededor */
+          max-width: 95vw;               /* que no desborde en pantallas chicas */
           background: #fff;
-          border-radius: 16px;
-          box-shadow: 0 8px 28px rgba(0,0,0,0.15);
-          padding: 20px;
+          border-radius: 14px;
+          box-shadow: 0 6px 20px rgba(0,0,0,0.12);
+          padding: 18px;
           text-align: center;
           border: 1px solid #eaeaea;
           animation: cardIn 1000ms ease-out both;
