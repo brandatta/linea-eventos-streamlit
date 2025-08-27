@@ -3,16 +3,23 @@ import datetime
 import time
 import uuid
 
-# ======= Estilos (título correcto) + pantalla de confirmación profesional =======
+# ======= Estilos globales (oculta header blanco) =======
 st.markdown("""
     <style>
-    .block-container { padding-top: 3rem; }
+    /* Ocultar header/menú/footer nativos de Streamlit */
+    header { visibility: hidden; }
+    [data-testid="stHeader"] { display: none; }
+    #MainMenu { visibility: hidden; }
+    footer { visibility: hidden; }
+
+    /* Ajuste de espacio superior (modificá a gusto) */
+    .block-container { padding-top: 1.5rem; }
+
+    /* Tamaño de títulos */
     h1, h2, h3 { font-size: 1.2rem !important; }
 
     /* ====== Card de confirmación sobria ====== */
-    .mp-wrapper {
-        display: flex; justify-content: center; align-items: center; min-height: 60vh;
-    }
+    .mp-wrapper { display: flex; justify-content: center; align-items: center; min-height: 60vh; }
     .mp-card {
         width: min(520px, 92vw);
         background: #ffffff;
@@ -48,7 +55,6 @@ st.markdown("""
     .mp-kv .k { color: #616161; }
     .mp-kv .v { font-weight: 600; text-align: right; }
 
-    .mp-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 8px; }
     .mp-btn { border-radius: 10px; padding: 10px 14px; border: 1px solid rgba(0,0,0,0.08); }
     .mp-btn-primary { background: #2E7D32; color: white; border: none; }
     .mp-muted { color: #666; font-size: 0.9rem; margin-top: 10px; }
@@ -213,7 +219,7 @@ elif st.session_state.page == "ticket":
         if st.button("Cancelar"):
             reset_to_home()
 
-# Página: Confirmación profesional (sin globos)
+# Página: Confirmación profesional (sin globos, con progreso)
 elif st.session_state.page == "confirmacion":
     data = st.session_state.data
 
@@ -264,7 +270,7 @@ elif st.session_state.page == "confirmacion":
     reset_to_home()
     st.markdown('</div></div>', unsafe_allow_html=True)
 
-# Página: Splash (si quedara en uso)
+# Página: Splash (solo por compatibilidad)
 elif st.session_state.page == "splash":
     st.success("✅ Evento registrado correctamente.")
     st.write("Volver al inicio:")
