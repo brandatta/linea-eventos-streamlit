@@ -3,11 +3,17 @@ import datetime
 import base64
 from streamlit.components.v1 import html  # Overlay HTML full-screen
 
-# ======= Estilos (evita que se corte el título) =======
+# ======= Estilos compactos (menos scroll) =======
 st.markdown("""
     <style>
-    .block-container { padding-top: 3rem; }
-    h1, h2, h3 { font-size: 1.2rem !important; }
+    .block-container { padding-top: 2rem; } /* un poco + bajo pero sin cortar título */
+    h1, h2, h3 { font-size: 1.1rem !important; margin-bottom: 0.35rem !important; }
+    .stMarkdown p { margin-bottom: 0.25rem; }
+    .stButton>button { padding: 0.45rem 0.8rem; }
+    .stSelectbox, .stTextInput, .stTextArea { margin-bottom: 0.5rem; }
+    .kpi { font-weight: 600; }
+    /* achicar espacios verticales entre bloques */
+    [data-testid="stVerticalBlock"] > div:has(> .stColumn) { margin-bottom: 0.5rem; }
     </style>
 """, unsafe_allow_html=True)
 
@@ -61,29 +67,38 @@ def go_to(page):
         clear_overlay()
     st.session_state.page = page
 
-# 👉 No mostrar título cuando estoy en la confirmación
+# 👉 No mostrar título cuando estoy en la confirmación (evita solapado)
 if st.session_state.page != "confirmacion":
     st.title("App Registro de Eventos")
 
-# Página: Seleccionar Línea
+# ======= Página: Seleccionar Línea =======
 if st.session_state.page == "linea":
     clear_overlay()
     st.header("Selecciona una línea")
-    for num in [1, 2, 3]:
-        if st.button(f"Línea {num}"):
-            st.session_state.data['linea'] = f"Línea {num}"
-            go_to("user")
+    c1, c2, c3 = st.columns(3)
+    if c1.button("Línea 1", use_container_width=True):
+        st.session_state.data['linea'] = "Línea 1"
+        go_to("user")
+    if c2.button("Línea 2", use_container_width=True):
+        st.session_state.data['linea'] = "Línea 2"
+        go_to("user")
+    if c3.button("Línea 3", use_container_width=True):
+        st.session_state.data['linea'] = "Línea 3"
+        go_to("user")
 
-# Página: Seleccionar Usuario
+# ======= Página: Seleccionar Usuario =======
 elif st.session_state.page == "user":
     clear_overlay()
     st.header("Selecciona tu usuario")
-    user = st.selectbox("Usuario", ["", "usuario1", "usuario2", "usuario3"])
-    if st.button("Continuar") and user:
-        st.session_state.data['user'] = user
-        go_to("motivo")
+    col_sel, col_btn = st.columns([3, 1])
+    with col_sel:
+        user = st.selectbox("Usuario", ["", "usuario1", "usuario2", "usuario3"], label_visibility="collapsed")
+    with col_btn:
+        if st.button("Continuar", use_container_width=True) and user:
+            st.session_state.data['user'] = user
+            go_to("motivo")
 
-# Página: Seleccionar Motivo
+# ======= Página: Motivo =======
 elif st.session_state.page == "motivo":
     clear_overlay()
     st.header("Selecciona un motivo")
@@ -96,104 +111,129 @@ elif st.session_state.page == "motivo":
         "OTROS (BLISTERA)", "FUERA DE PASO OPERATIVO B",
         "FALTA DE INSUMOS DE DEPOSITO"
     ]
-    selected_motivo = st.selectbox("Motivo", [""] + motivos)
-    if selected_motivo and st.button("Continuar"):
-        st.session_state.data['motivo'] = selected_motivo
-        go_to("submotivo")
+    col_sel, col_btn = st.columns([3, 1])
+    with col_sel:
+        selected_motivo = st.selectbox("Motivo", [""] + motivos, label_visibility="collapsed")
+    with col_btn:
+        if st.button("Continuar", use_container_width=True) and selected_motivo:
+            st.session_state.data['motivo'] = selected_motivo
+            go_to("submotivo")
 
-# Página: Seleccionar Submotivo
+# ======= Página: Submotivo =======
 elif st.session_state.page == "submotivo":
     clear_overlay()
     st.header("Selecciona un submotivo")
-    for sub in ["Motor", "Sensor", "Panel"]:
-        if st.button(sub):
-            st.session_state.data['submotivo'] = sub
-            go_to("componente")
+    c1, c2, c3 = st.columns(3)
+    if c1.button("Motor", use_container_width=True):
+        st.session_state.data['submotivo'] = "Motor"
+        go_to("componente")
+    if c2.button("Sensor", use_container_width=True):
+        st.session_state.data['submotivo'] = "Sensor"
+        go_to("componente")
+    if c3.button("Panel", use_container_width=True):
+        st.session_state.data['submotivo'] = "Panel"
+        go_to("componente")
 
-# Página: Seleccionar Componente
+# ======= Página: Componente =======
 elif st.session_state.page == "componente":
     clear_overlay()
     st.header("Selecciona un componente")
-    for comp in ["PLC", "Tornillo", "Interruptor"]:
-        if st.button(comp):
-            st.session_state.data['componente'] = comp
-            go_to("tipo")
+    c1, c2, c3 = st.columns(3)
+    if c1.button("PLC", use_container_width=True):
+        st.session_state.data['componente'] = "PLC"
+        go_to("tipo")
+    if c2.button("Tornillo", use_container_width=True):
+        st.session_state.data['componente'] = "Tornillo"
+        go_to("tipo")
+    if c3.button("Interruptor", use_container_width=True):
+        st.session_state.data['componente'] = "Interruptor"
+        go_to("tipo")
 
-# Página: Tipo de Evento
+# ======= Página: Tipo de Evento =======
 elif st.session_state.page == "tipo":
     clear_overlay()
     linea_txt = st.session_state.data.get('linea', 'Línea')
     st.header(f"Selecciona una opción para {linea_txt}")
-    if st.button("Interrupción"):
+    c1, c2 = st.columns(2)
+    if c1.button("Interrupción", use_container_width=True):
         st.session_state.data["tipo"] = "interrupcion"
         go_to("form")
-    if st.button("Novedad"):
+    if c2.button("Novedad", use_container_width=True):
         st.session_state.data["tipo"] = "novedad"
         go_to("form")
 
-# Página: Formulario
+# ======= Página: Formulario =======
 elif st.session_state.page == "form":
     clear_overlay()
     tipo = st.session_state.data.get("tipo", "interrupcion")
     linea_txt = st.session_state.data.get('linea', 'Línea')
+
     st.header(f"{tipo.title()} - {linea_txt}")
     st.markdown(
-        f"**Motivo:** {st.session_state.data.get('motivo','-')} | "
-        f"**Submotivo:** {st.session_state.data.get('submotivo','-')} | "
+        f"**Motivo:** {st.session_state.data.get('motivo','-')}  |  "
+        f"**Submotivo:** {st.session_state.data.get('submotivo','-')}  |  "
         f"**Componente:** {st.session_state.data.get('componente','-')}"
     )
 
     if tipo == "interrupcion":
-        start_time_str = st.text_input("Hora de inicio (HH:MM)", placeholder="Ej: 08:30")
-        end_time_str = st.text_input("Hora de fin (HH:MM)", placeholder="Ej: 09:15")
+        col_a, col_b = st.columns(2)
+        with col_a:
+            start_time_str = st.text_input("Inicio (HH:MM)", placeholder="08:30")
+        with col_b:
+            end_time_str = st.text_input("Fin (HH:MM)", placeholder="09:15")
     else:
         start_time_str = end_time_str = None
 
-    comentario = st.text_area("Describe el evento")
+    comentario = st.text_area("Describe el evento", height=100)
 
-    if st.button("Confirmar"):
-        minutos = None
-        if tipo == "interrupcion":
-            try:
-                start_dt = datetime.datetime.strptime(start_time_str, "%H:%M")
-                end_dt = datetime.datetime.strptime(end_time_str, "%H:%M")
-                minutos = int((end_dt - start_dt).total_seconds() / 60)
-            except Exception:
-                st.error("⛔ Formato de hora inválido. Usá HH:MM.")
-                st.stop()
+    c_sp, c_btn = st.columns([3, 1])
+    with c_btn:
+        if st.button("Confirmar", use_container_width=True):
+            minutos = None
+            if tipo == "interrupcion":
+                try:
+                    start_dt = datetime.datetime.strptime(start_time_str, "%H:%M")
+                    end_dt = datetime.datetime.strptime(end_time_str, "%H:%M")
+                    minutos = int((end_dt - start_dt).total_seconds() / 60)
+                except Exception:
+                    st.error("⛔ Formato de hora inválido. Usá HH:MM.")
+                    st.stop()
 
-        st.session_state.data.update({
-            "start": start_time_str if tipo == "interrupcion" else None,
-            "end": end_time_str if tipo == "interrupcion" else None,
-            "minutos": minutos,
-            "comentario": comentario,
-            "timestamp": str(datetime.datetime.now())
-        })
-        go_to("ticket")
+            st.session_state.data.update({
+                "start": start_time_str if tipo == "interrupcion" else None,
+                "end": end_time_str if tipo == "interrupcion" else None,
+                "minutos": minutos,
+                "comentario": comentario,
+                "timestamp": str(datetime.datetime.now())
+            })
+            go_to("ticket")
 
-# Página: Ticket
+# ======= Página: Ticket (grilla compacta) =======
 elif st.session_state.page == "ticket":
     clear_overlay()
     data = st.session_state.data
     st.subheader("Ticket")
-    st.write(f"**Fecha y hora:** {data.get('timestamp','-')}")
-    st.write(f"**Línea:** {data.get('linea','-')}")
-    st.write(f"**Motivo:** {data.get('motivo','-')}")
-    st.write(f"**Submotivo:** {data.get('submotivo','-')}")
-    st.write(f"**Componente:** {data.get('componente','-')}")
-    st.write(f"**Minutos:** {data.get('minutos', '-')}")
-    st.write(f"**Comentario:** {data.get('comentario','-')}")
-    st.write(f"**Usuario:** {data.get('user','-')}")
+    cols = st.columns(2)
+    with cols[0]:
+        st.write(f"**Fecha y hora:** {data.get('timestamp','-')}")
+        st.write(f"**Línea:** {data.get('linea','-')}")
+        st.write(f"**Motivo:** {data.get('motivo','-')}")
+        st.write(f"**Submotivo:** {data.get('submotivo','-')}")
+    with cols[1]:
+        st.write(f"**Componente:** {data.get('componente','-')}")
+        st.write(f"**Minutos:** {data.get('minutos', '-')}")
+        st.write(f"**Usuario:** {data.get('user','-')}")
+        st.write(f"**Comentario:** {data.get('comentario','-')}")
 
-    col1, col2 = st.columns(2)
-    with col1:
-        if st.button("Confirmar"):
+    c1, c2 = st.columns(2)
+    with c1:
+        if st.button("Confirmar", use_container_width=True):
             go_to("confirmacion")
-    with col2:
-        if st.button("Cancelar"):
+    with c2:
+        if st.button("Cancelar", use_container_width=True):
             reset_to_home()
 
-# Página: Confirmación (modal estilo Mercado Pago)
+# ======= Página: Confirmación (modal clásico, sin scroll) =======
 elif st.session_state.page == "confirmacion":
     d = st.session_state.data
     logo_b64 = get_logo_b64("logorelleno.png")
@@ -217,7 +257,7 @@ elif st.session_state.page == "confirmacion":
           display: grid; place-items: center;
         }}
         .mp-card {{
-          width: 420px;                  /* tamaño fijo más chico */
+          width: 420px;                  /* modal compacto */
           background: #fff;
           border-radius: 16px;
           box-shadow: 0 8px 28px rgba(0,0,0,0.15);
@@ -228,7 +268,7 @@ elif st.session_state.page == "confirmacion":
         }}
 
         .mp-logo {{
-          width: 70px;                   /* logo más chico */
+          width: 70px;                   /* logo chico */
           margin: 0 auto 12px auto;
           display: block;
           animation: logoIn 1000ms ease-out both,
