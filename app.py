@@ -199,7 +199,7 @@ elif st.session_state.page == "ticket":
         if st.button("Cancelar"):
             reset_to_home()
 
-# Página: Confirmación (overlay HTML full-screen con LOGO animado; sin duplicados)
+# Página: Confirmación (overlay HTML full-screen con ajustes de márgenes, logo y animaciones)
 elif st.session_state.page == "confirmacion":
     d = st.session_state.data
     logo_b64 = get_logo_b64("logorelleno.png")  # ajustá la ruta si está en /assets/ u otra carpeta
@@ -221,44 +221,66 @@ elif st.session_state.page == "confirmacion":
           display: grid; place-items: center;
         }}
         .mp-card {{
-          width: min(520px, 92vw); background: #fff; border-radius: 16px;
+          width: min(640px, 96vw);               /* más ancho: reduce "marco" gris */
+          background: #fff;
+          border-radius: 16px;
           box-shadow: 0 8px 28px rgba(0,0,0,0.08);
-          padding: 28px 24px; text-align: center; border: 1px solid #eaeaea;
+          padding: 20px 18px;                    /* menos padding interno */
+          text-align: center;
+          border: 1px solid #eaeaea;
+          animation: cardIn 900ms ease-out both; /* entrada más lenta del card */
         }}
 
-        /* ==== Logo animado ==== */
+        /* ==== Logo animado (mitad de tamaño y transición más lenta) ==== */
         .mp-logo {{
-          width: 140px; margin: 0 auto 16px auto; display: block;
-          animation: logoIn 420ms ease-out both, logoPulse 2400ms ease-in-out 600ms infinite;
+          width: 70px;                            /* mitad del tamaño (antes 140px) */
+          margin: 0 auto 12px auto;
+          display: block;
+          animation: logoIn 900ms ease-out both,  /* más lenta */
+                     logoPulse 3000ms ease-in-out 900ms infinite; /* pulso más largo */
           transform-origin: center;
         }}
+        @keyframes cardIn {{
+          0%   {{ opacity: 0; transform: translateY(8px) scale(0.98); }}
+          100% {{ opacity: 1; transform: translateY(0)   scale(1); }}
+        }}
         @keyframes logoIn {{
-          0% {{ opacity: 0; transform: scale(0.85) translateY(6px); }}
-          100% {{ opacity: 1; transform: scale(1) translateY(0); }}
+          0%   {{ opacity: 0; transform: scale(0.85) translateY(6px); }}
+          100% {{ opacity: 1; transform: scale(1)     translateY(0);  }}
         }}
         @keyframes logoPulse {{
           0%, 100% {{ transform: scale(1); }}
-          50% {{ transform: scale(1.035); }}
+          50%      {{ transform: scale(1.035); }}
         }}
 
-        .mp-title {{ font-size: 1.2rem; font-weight: 700; margin-bottom: 6px; }}
-        .mp-subtitle {{ color: #5f6368; font-size: 0.96rem; margin-bottom: 14px; }}
+        .mp-title {{ font-size: 1.15rem; font-weight: 700; margin-bottom: 4px; }}
+        .mp-subtitle {{ color: #5f6368; font-size: 0.95rem; margin-bottom: 12px; }}
 
         .mp-summary {{
-          text-align: left; background: #fafafa; border: 1px solid #e0e0e0;
-          border-radius: 12px; padding: 12px 14px; margin: 14px 0 18px 0; font-size: 0.95rem;
+          text-align: left;
+          background: #fafafa;
+          border: 1px solid #e0e0e0;
+          border-radius: 12px;
+          padding: 10px 12px;                    /* menos padding */
+          margin: 10px 0 14px 0;                 /* menos margen */
+          font-size: 0.95rem;
         }}
-        .mp-kv {{ display: flex; justify-content: space-between; gap: 12px; margin: 4px 0; }}
+        .mp-kv {{ display: flex; justify-content: space-between; gap: 10px; margin: 3px 0; }}
         .mp-kv .k {{ color: #616161; }} .mp-kv .v {{ font-weight: 600; text-align: right; }}
 
-        .mp-actions {{ display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; }}
+        .mp-actions {{
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 10px;
+          margin-top: 8px;                        /* menos separación */
+        }}
         .btn {{
           display: inline-block; text-decoration: none; text-align: center;
           border-radius: 10px; padding: 10px 14px; border: 1px solid rgba(0,0,0,0.08);
           background: #fff; color: #111;
         }}
         .btn-primary {{ background: #2E7D32; color: #fff; border: none; }}
-        .mp-muted {{ color: #666; font-size: 0.9rem; margin-top: 10px; }}
+        .mp-muted {{ color: #666; font-size: 0.9rem; margin-top: 8px; }}
       </style>
     </head>
     <body>
@@ -292,4 +314,4 @@ elif st.session_state.page == "confirmacion":
 
     # Render SIEMPRE en el placeholder global (limpiable)
     with st.session_state.overlay_slot:
-        html(overlay_html, height=1000, scrolling=False)
+        html(overlay_html, height=900, scrolling=False)
