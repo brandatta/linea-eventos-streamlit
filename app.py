@@ -257,12 +257,12 @@ elif st.session_state.page == "confirmacion":
           display: grid; place-items: center;
         }}
         .mp-card {{
-          width: 540px;                  /* más ancho => menos gris alrededor */
-          max-width: 95vw;               /* que no desborde en pantallas chicas */
+          width: 540px;
+          max-width: 95vw;
           background: #fff;
           border-radius: 14px;
           box-shadow: 0 6px 20px rgba(0,0,0,0.12);
-          padding: 18px;
+          padding: 14px 16px;              /* menos padding */
           text-align: center;
           border: 1px solid #eaeaea;
           animation: cardIn 1000ms ease-out both;
@@ -344,4 +344,4 @@ elif st.session_state.page == "confirmacion":
     """
 
     with st.session_state.overlay_slot:
-        html(overlay_html, height=600, scrolling=False)
+        html(overlay_html, height=950, scrolling=False)
