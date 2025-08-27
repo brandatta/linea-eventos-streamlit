@@ -3,60 +3,72 @@ import datetime
 import time
 import uuid
 
-# ======= Estilos globales (oculta header blanco) =======
+# ======= Estilos globales (oculta header blanco y afina layout) =======
 st.markdown("""
     <style>
-    /* Ocultar header/menú/footer nativos de Streamlit */
+    /* Ocultar completamente el header/menú/footer de Streamlit */
     header { visibility: hidden; }
     [data-testid="stHeader"] { display: none; }
     #MainMenu { visibility: hidden; }
     footer { visibility: hidden; }
 
-    /* Ajuste de espacio superior (modificá a gusto) */
-    .block-container { padding-top: 1.5rem; }
+    /* Ajuste general del contenedor principal */
+    .block-container { padding-top: 1rem; }
 
-    /* Tamaño de títulos */
+    /* Tipografías compactas para títulos */
     h1, h2, h3 { font-size: 1.2rem !important; }
 
-    /* ====== Card de confirmación sobria ====== */
-    .mp-wrapper { display: flex; justify-content: center; align-items: center; min-height: 60vh; }
+    /* ====== Estilos de confirmación tipo Mercado Pago ====== */
+    .mp-full {
+        min-height: 88vh;  /* ocupa casi toda la pantalla */
+        display: flex; align-items: center; justify-content: center;
+    }
     .mp-card {
         width: min(520px, 92vw);
         background: #ffffff;
-        border-radius: 14px;
-        box-shadow: 0 6px 20px rgba(0,0,0,0.08);
-        padding: 26px 22px;
+        border-radius: 16px;
+        box-shadow: 0 8px 28px rgba(0,0,0,0.08);
+        padding: 28px 24px;
         border: 1px solid rgba(0,0,0,0.06);
         text-align: center;
     }
     .mp-check {
-        width: 74px; height: 74px; border-radius: 50%;
-        background: #edf7f0; margin: 0 auto 14px auto; display: grid; place-items: center;
-        border: 2px solid #2E7D32; /* verde sobrio */
-        animation: popIn 320ms ease-out;
+        width: 82px; height: 82px; border-radius: 50%;
+        background: #edf7f0; margin: 0 auto 16px auto; display: grid; place-items: center;
+        border: 2px solid #2E7D32;
+        animation: popIn 300ms ease-out;
     }
     .mp-check svg {
-        width: 36px; height: 36px;
-        stroke: #2E7D32; fill: none; stroke-width: 3px;
-        stroke-linecap: round; stroke-linejoin: round;
+        width: 44px; height: 44px;
+        stroke: #2E7D32; fill: none; stroke-width: 3px; stroke-linecap: round; stroke-linejoin: round;
         animation: draw 500ms ease-out forwards;
     }
     @keyframes popIn { 0% { transform: scale(0.9); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
     @keyframes draw { 0% { stroke-dasharray: 0 100; } 100% { stroke-dasharray: 100 0; } }
 
-    .mp-title { font-size: 1.2rem; font-weight: 700; margin-bottom: 2px; }
-    .mp-subtitle { color: #5f6368; font-size: 0.95rem; margin-bottom: 12px; }
+    .mp-title { font-size: 1.2rem; font-weight: 700; margin-bottom: 6px; }
+    .mp-subtitle { color: #5f6368; font-size: 0.96rem; margin-bottom: 14px; }
 
     .mp-summary {
-        text-align: left; background: #fafafa; border: 1px solid rgba(0,0,0,0.06);
-        border-radius: 12px; padding: 12px 14px; margin: 12px 0 16px 0; font-size: 0.95rem; line-height: 1.35rem;
+        text-align: left;
+        background: #fafafa;
+        border: 1px solid rgba(0,0,0,0.06);
+        border-radius: 12px;
+        padding: 12px 14px;
+        margin: 14px 0 18px 0;
+        font-size: 0.95rem;
+        line-height: 1.35rem;
     }
     .mp-kv { display: flex; justify-content: space-between; gap: 12px; margin: 4px 0; }
     .mp-kv .k { color: #616161; }
     .mp-kv .v { font-weight: 600; text-align: right; }
 
+    .mp-actions {
+        display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px;
+    }
     .mp-btn { border-radius: 10px; padding: 10px 14px; border: 1px solid rgba(0,0,0,0.08); }
     .mp-btn-primary { background: #2E7D32; color: white; border: none; }
+
     .mp-muted { color: #666; font-size: 0.9rem; margin-top: 10px; }
     </style>
 """, unsafe_allow_html=True)
@@ -67,14 +79,12 @@ def init_state():
         st.session_state.page = 'linea'
     if 'data' not in st.session_state:
         st.session_state.data = {}
-    if 'auto_back_secs' not in st.session_state:
-        st.session_state.auto_back_secs = 5  # segundos del contador
 
 def reset_to_home():
+    # Limpiar y re-inicializar ambas claves para evitar AttributeError
     st.session_state.clear()
     st.session_state.page = 'linea'
     st.session_state.data = {}
-    st.session_state.auto_back_secs = 5
 
 init_state()
 
@@ -101,7 +111,7 @@ elif st.session_state.page == "user":
         st.session_state.data['user'] = user
         go_to("motivo")
 
-# Página: Seleccionar Motivo
+# Página: Seleccionar Motivo (actualizado con dropdown)
 elif st.session_state.page == "motivo":
     st.header("Selecciona un motivo")
     motivos = [
@@ -176,6 +186,7 @@ elif st.session_state.page == "form":
 
     if st.button("Confirmar"):
         minutos = None
+        # Validación de horario si es interrupción
         if tipo == "interrupcion":
             try:
                 start_dt = datetime.datetime.strptime(start_time_str, "%H:%M")
@@ -185,6 +196,7 @@ elif st.session_state.page == "form":
                 st.error("⛔ Formato de hora inválido. Usá HH:MM.")
                 st.stop()
 
+        # Generar ID de ticket simple (opcional)
         ticket_id = uuid.uuid4().hex[:8].upper()
 
         st.session_state.data.update({
@@ -197,7 +209,7 @@ elif st.session_state.page == "form":
         })
         go_to("ticket")
 
-# Página: Ticket (revisión final)
+# Página: Ticket
 elif st.session_state.page == "ticket":
     data = st.session_state.data
     st.subheader("Ticket")
@@ -213,34 +225,36 @@ elif st.session_state.page == "ticket":
 
     col1, col2 = st.columns(2)
     with col1:
-        if st.button("Confirmar registro"):
-            go_to("confirmacion")  # pantalla de confirmación sobria
+        if st.button("Confirmar"):
+            go_to("confirmacion")   # 👈 ahora va a la nueva página de confirmación
     with col2:
         if st.button("Cancelar"):
             reset_to_home()
 
-# Página: Confirmación profesional (sin globos, con progreso)
+# Página: Confirmación (estilo Mercado Pago, sin bloques de Streamlit)
 elif st.session_state.page == "confirmacion":
     data = st.session_state.data
 
-    st.markdown('<div class="mp-wrapper"><div class="mp-card">', unsafe_allow_html=True)
+    # Contenedor full-screen centrado
+    st.markdown('<div class="mp-full"><div class="mp-card">', unsafe_allow_html=True)
+
+    # Ícono de check
     st.markdown("""
         <div class="mp-check">
-            <svg viewBox="0 0 52 52">
-                <path d="M14 27 L22 35 L38 17"></path>
-            </svg>
+            <svg viewBox="0 0 52 52"><path d="M14 27 L22 35 L38 17"></path></svg>
         </div>
     """, unsafe_allow_html=True)
 
+    # Título + subtítulo
     st.markdown(f"""
         <div class="mp-title">Evento registrado</div>
         <div class="mp-subtitle">ID Ticket: <b>{data.get('ticket_id','-')}</b></div>
     """, unsafe_allow_html=True)
 
+    # Resumen
     st.markdown('<div class="mp-summary">', unsafe_allow_html=True)
     def kv(k, v):
         st.markdown(f"""<div class="mp-kv"><div class="k">{k}</div><div class="v">{v}</div></div>""", unsafe_allow_html=True)
-
     kv("Fecha y hora", data.get('timestamp','-'))
     kv("Línea", data.get('linea','-'))
     kv("Motivo", data.get('motivo','-'))
@@ -250,6 +264,7 @@ elif st.session_state.page == "confirmacion":
     kv("Usuario", data.get('user','-'))
     st.markdown("</div>", unsafe_allow_html=True)
 
+    # Botones de acción
     colA, colB = st.columns(2)
     with colA:
         if st.button("Registrar otro evento", key="btn_otro", use_container_width=True):
@@ -258,19 +273,9 @@ elif st.session_state.page == "confirmacion":
         if st.button("Ver detalle del ticket", key="btn_detalle", use_container_width=True):
             go_to("ticket")
 
-    # Barra de progreso como countdown
-    secs = st.session_state.get("auto_back_secs", 5)
-    st.markdown('<div class="mp-muted">Volvés al inicio automáticamente…</div>', unsafe_allow_html=True)
-    progress = st.progress(0)
-    steps = secs * 10  # actualizaciones cada 0.1s
-    for i in range(steps):
-        time.sleep(0.1)
-        progress.progress((i + 1) / steps)
-
-    reset_to_home()
     st.markdown('</div></div>', unsafe_allow_html=True)
 
-# Página: Splash (solo por compatibilidad)
+# (Opcional) Página: Splash — ya no se usa, podés borrarla
 elif st.session_state.page == "splash":
     st.success("✅ Evento registrado correctamente.")
     st.write("Volver al inicio:")
