@@ -26,11 +26,25 @@ def init_state():
         st.session_state.page = 'linea'
     if 'data' not in st.session_state:
         st.session_state.data = {}
+    # placeholder global para el overlay
+    if 'overlay_slot' not in st.session_state:
+        st.session_state.overlay_slot = st.empty()
+
+def clear_overlay():
+    # limpia el overlay si existe algo renderizado
+    try:
+        st.session_state.overlay_slot.empty()
+    except Exception:
+        pass
 
 def reset_to_home():
+    # limpia overlay y estado, y vuelve a inicio
+    clear_overlay()
     st.session_state.clear()
     st.session_state.page = 'linea'
     st.session_state.data = {}
+    # re-crear placeholder global
+    st.session_state.overlay_slot = st.empty()
 
 init_state()
 
@@ -42,26 +56,31 @@ if "action" in params:
         reset_to_home()
         st.query_params.clear()
     elif act == "ticket":
+        # al salir de confirmación, asegurate de limpiar overlay
+        clear_overlay()
         st.session_state.page = "ticket"
         st.query_params.clear()
 
 def go_to(page):
+    # al cambiar de página, limpiamos overlay para evitar residuos
+    if page != "confirmacion":
+        clear_overlay()
     st.session_state.page = page
 
 st.title("App Registro de Eventos")
 
 # Página: Seleccionar Línea
 if st.session_state.page == "linea":
+    clear_overlay()
     st.header("Selecciona una línea")
     for num in [1, 2, 3]:
         if st.button(f"Línea {num}"):
-            if 'data' not in st.session_state:
-                st.session_state.data = {}
             st.session_state.data['linea'] = f"Línea {num}"
             go_to("user")
 
 # Página: Seleccionar Usuario
 elif st.session_state.page == "user":
+    clear_overlay()
     st.header("Selecciona tu usuario")
     user = st.selectbox("Usuario", ["", "usuario1", "usuario2", "usuario3"])
     if st.button("Continuar") and user:
@@ -70,6 +89,7 @@ elif st.session_state.page == "user":
 
 # Página: Seleccionar Motivo
 elif st.session_state.page == "motivo":
+    clear_overlay()
     st.header("Selecciona un motivo")
     motivos = [
         "CAMBIO DE LOTE", "ROTURA DE AMPOLLAS", "MAL CIERRE DE ESTUCHES",
@@ -87,6 +107,7 @@ elif st.session_state.page == "motivo":
 
 # Página: Seleccionar Submotivo
 elif st.session_state.page == "submotivo":
+    clear_overlay()
     st.header("Selecciona un submotivo")
     for sub in ["Motor", "Sensor", "Panel"]:
         if st.button(sub):
@@ -95,6 +116,7 @@ elif st.session_state.page == "submotivo":
 
 # Página: Seleccionar Componente
 elif st.session_state.page == "componente":
+    clear_overlay()
     st.header("Selecciona un componente")
     for comp in ["PLC", "Tornillo", "Interruptor"]:
         if st.button(comp):
@@ -103,6 +125,7 @@ elif st.session_state.page == "componente":
 
 # Página: Tipo de Evento
 elif st.session_state.page == "tipo":
+    clear_overlay()
     linea_txt = st.session_state.data.get('linea', 'Línea')
     st.header(f"Selecciona una opción para {linea_txt}")
     if st.button("Interrupción"):
@@ -114,6 +137,7 @@ elif st.session_state.page == "tipo":
 
 # Página: Formulario
 elif st.session_state.page == "form":
+    clear_overlay()
     tipo = st.session_state.data.get("tipo", "interrupcion")
     linea_txt = st.session_state.data.get('linea', 'Línea')
     st.header(f"{tipo.title()} - {linea_txt}")
@@ -153,6 +177,7 @@ elif st.session_state.page == "form":
 
 # Página: Ticket
 elif st.session_state.page == "ticket":
+    clear_overlay()
     data = st.session_state.data
     st.subheader("Ticket")
     st.write(f"**Fecha y hora:** {data.get('timestamp','-')}")
@@ -172,7 +197,7 @@ elif st.session_state.page == "ticket":
         if st.button("Cancelar"):
             reset_to_home()
 
-# Página: Confirmación (overlay HTML full-screen con LOGO animado, sin key y sin duplicados)
+# Página: Confirmación (overlay HTML full-screen con LOGO animado; sin duplicados)
 elif st.session_state.page == "confirmacion":
     d = st.session_state.data
     logo_b64 = get_logo_b64("logorelleno.png")  # ajustá la ruta si está en /assets/ u otra carpeta
@@ -263,14 +288,6 @@ elif st.session_state.page == "confirmacion":
     </html>
     """
 
-    # Render en un único placeholder para no apilar overlays (sin 'key')
-    overlay_slot = st.empty()
-    with overlay_slot:
+    # Render SIEMPRE en el placeholder global (limpiable)
+    with st.session_state.overlay_slot:
         html(overlay_html, height=800, scrolling=False)
-
-# Página: Splash (no usada; por compatibilidad)
-elif st.session_state.page == "splash":
-    st.success("✅ Evento registrado correctamente.")
-    st.write("Volver al inicio:")
-    if st.button("Volver"):
-        reset_to_home()
