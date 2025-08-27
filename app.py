@@ -183,11 +183,11 @@ elif st.session_state.page == "ticket":
         if st.button("Cancelar"):
             reset_to_home()
 
-# Página: Confirmación (overlay HTML full-screen con LOGO embebido en base64)
+# Página: Confirmación (overlay HTML full-screen con LOGO animado y título único)
 elif st.session_state.page == "confirmacion":
     d = st.session_state.data
     logo_b64 = get_logo_b64("logorelleno.png")  # ajustá la ruta si está en /assets/ u otra carpeta
-    logo_img = f"<img src='data:image/png;base64,{logo_b64}' class='mp-logo' alt='Logo'>" if logo_b64 else "<div class='mp-title'>Evento registrado</div>"
+    logo_img = f"<img src='data:image/png;base64,{logo_b64}' class='mp-logo' alt='Logo'>" if logo_b64 else ""
 
     overlay_html = f"""
     <!DOCTYPE html>
@@ -209,17 +209,32 @@ elif st.session_state.page == "confirmacion":
           box-shadow: 0 8px 28px rgba(0,0,0,0.08);
           padding: 28px 24px; text-align: center; border: 1px solid #eaeaea;
         }}
+
+        /* ==== Logo animado ==== */
         .mp-logo {{
           width: 140px; margin: 0 auto 16px auto; display: block;
+          animation: logoIn 420ms ease-out both, logoPulse 2400ms ease-in-out 600ms infinite;
+          transform-origin: center;
         }}
+        @keyframes logoIn {{
+          0% {{ opacity: 0; transform: scale(0.85) translateY(6px); }}
+          100% {{ opacity: 1; transform: scale(1) translateY(0); }}
+        }}
+        @keyframes logoPulse {{
+          0%, 100% {{ transform: scale(1); }}
+          50% {{ transform: scale(1.035); }}
+        }}
+
         .mp-title {{ font-size: 1.2rem; font-weight: 700; margin-bottom: 6px; }}
         .mp-subtitle {{ color: #5f6368; font-size: 0.96rem; margin-bottom: 14px; }}
+
         .mp-summary {{
           text-align: left; background: #fafafa; border: 1px solid #e0e0e0;
           border-radius: 12px; padding: 12px 14px; margin: 14px 0 18px 0; font-size: 0.95rem;
         }}
         .mp-kv {{ display: flex; justify-content: space-between; gap: 12px; margin: 4px 0; }}
         .mp-kv .k {{ color: #616161; }} .mp-kv .v {{ font-weight: 600; text-align: right; }}
+
         .mp-actions {{ display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; }}
         .btn {{
           display: inline-block; text-decoration: none; text-align: center;
@@ -234,7 +249,7 @@ elif st.session_state.page == "confirmacion":
       <div class="mp-overlay">
         <div class="mp-card">
           {logo_img}
-          {"<div class='mp-title'>Evento registrado</div>" if logo_b64 else ""}
+          <div class="mp-title">Evento registrado</div>  <!-- TÍTULO ÚNICO -->
           <div class="mp-subtitle">Ticket generado correctamente</div>
 
           <div class="mp-summary">
