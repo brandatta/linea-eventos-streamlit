@@ -449,9 +449,13 @@ elif st.session_state.page == "dashboard":
             # etiquetas adentro con porcentaje y minutos
             fig.update_traces(textposition="inside", texttemplate="%{label}<br>%{percent:.1%} (%{value}m)")
             # layout responsive al ancho del contenedor
-            fig.update_layout(margin=dict(l=0, r=0, t=40, b=0))
+            fig.update_layout(
+                margin=dict(l=0, r=0, t=40, b=0),
+                height=300,  # más bajo (default ~450)
+                width=300    # más angosto
+            )
+            st.plotly_chart(fig, use_container_width=False)
 
-            st.plotly_chart(fig, use_container_width=True)
 
     st.subheader("Tabla de eventos")
     if df.empty:
