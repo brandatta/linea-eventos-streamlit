@@ -344,4 +344,4 @@ elif st.session_state.page == "confirmacion":
     """
 
     with st.session_state.overlay_slot:
-        html(overlay_html, height=950, scrolling=False)
+        html(overlay_html, height=300, scrolling=False)
