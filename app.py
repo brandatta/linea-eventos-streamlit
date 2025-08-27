@@ -2,11 +2,11 @@ import streamlit as st
 import datetime
 import time
 
-# Reducir margen superior y tamaño de títulos
+# Reducir margen superior y tamaño de títulos (ajustado)
 st.markdown("""
     <style>
     .block-container {
-        padding-top: 1rem;
+        padding-top: 3rem;  /* Ajustado para que no se recorte el título */
     }
     h1, h2, h3 {
         font-size: 1.2rem !important;
