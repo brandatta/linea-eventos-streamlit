@@ -233,7 +233,7 @@ elif st.session_state.page == "ticket":
         if st.button("Cancelar", use_container_width=True):
             reset_to_home()
 
-# ======= Página: Confirmación (modal clásico, sin scroll) =======
+# ======= Página: Confirmación (modal sin fondo gris) =======
 elif st.session_state.page == "confirmacion":
     d = st.session_state.data
     logo_b64 = get_logo_b64("logorelleno.png")
@@ -252,7 +252,7 @@ elif st.session_state.page == "confirmacion":
         }}
         .mp-overlay {{
           position: fixed; inset: 0;
-          background: rgba(0,0,0,0.35);   /* gris translúcido */
+          background: transparent;     /* ✅ sin gris detrás */
           z-index: 9999;
           display: grid; place-items: center;
         }}
@@ -262,7 +262,7 @@ elif st.session_state.page == "confirmacion":
           background: #fff;
           border-radius: 14px;
           box-shadow: 0 6px 20px rgba(0,0,0,0.12);
-          padding: 14px 16px;              /* menos padding */
+          padding: 14px 16px;
           text-align: center;
           border: 1px solid #eaeaea;
           animation: cardIn 1000ms ease-out both;
