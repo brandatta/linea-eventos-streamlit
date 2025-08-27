@@ -11,7 +11,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# ======= Util: cargar logo como base64 para usar en overlay HTML =======
+# ======= Util: cargar logo como base64 =======
 @st.cache_data(show_spinner=False)
 def get_logo_b64(path="logorelleno.png"):
     try:
@@ -26,29 +26,25 @@ def init_state():
         st.session_state.page = 'linea'
     if 'data' not in st.session_state:
         st.session_state.data = {}
-    # placeholder global para el overlay
     if 'overlay_slot' not in st.session_state:
         st.session_state.overlay_slot = st.empty()
 
 def clear_overlay():
-    # limpia el overlay si existe algo renderizado
     try:
         st.session_state.overlay_slot.empty()
     except Exception:
         pass
 
 def reset_to_home():
-    # limpia overlay y estado, y vuelve a inicio
     clear_overlay()
     st.session_state.clear()
     st.session_state.page = 'linea'
     st.session_state.data = {}
-    # re-crear placeholder global
     st.session_state.overlay_slot = st.empty()
 
 init_state()
 
-# ======= Handler de acciones via query params (desde el overlay) =======
+# ======= Handler de acciones via query params =======
 params = st.query_params
 if "action" in params:
     act = params.get("action")
@@ -56,18 +52,16 @@ if "action" in params:
         reset_to_home()
         st.query_params.clear()
     elif act == "ticket":
-        # al salir de confirmación, asegurate de limpiar overlay
         clear_overlay()
         st.session_state.page = "ticket"
         st.query_params.clear()
 
 def go_to(page):
-    # al cambiar de página, limpiamos overlay para evitar residuos
     if page != "confirmacion":
         clear_overlay()
     st.session_state.page = page
 
-# 👉 No mostrar el título cuando estoy en la confirmación
+# 👉 No mostrar título cuando estoy en la confirmación
 if st.session_state.page != "confirmacion":
     st.title("App Registro de Eventos")
 
@@ -199,10 +193,10 @@ elif st.session_state.page == "ticket":
         if st.button("Cancelar"):
             reset_to_home()
 
-# Página: Confirmación (overlay HTML full-screen con ajustes de márgenes, logo y animaciones)
+# Página: Confirmación (modal estilo Mercado Pago)
 elif st.session_state.page == "confirmacion":
     d = st.session_state.data
-    logo_b64 = get_logo_b64("logorelleno.png")  # ajustá la ruta si está en /assets/ u otra carpeta
+    logo_b64 = get_logo_b64("logorelleno.png")
     logo_img = f"<img src='data:image/png;base64,{logo_b64}' class='mp-logo' alt='Logo'>" if logo_b64 else ""
 
     overlay_html = f"""
@@ -213,74 +207,73 @@ elif st.session_state.page == "confirmacion":
       <meta name="viewport" content="width=device-width, initial-scale=1" />
       <style>
         html, body {{
-          margin: 0; padding: 0; background: #f6f7f9;
+          margin: 0; padding: 0;
           font-family: system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial;
         }}
         .mp-overlay {{
-          position: fixed; inset: 0; background: #f6f7f9; z-index: 9999;
+          position: fixed; inset: 0;
+          background: rgba(0,0,0,0.35);   /* gris translúcido */
+          z-index: 9999;
           display: grid; place-items: center;
         }}
         .mp-card {{
-          width: min(640px, 96vw);               /* más ancho: reduce "marco" gris */
+          width: 420px;                  /* tamaño fijo más chico */
           background: #fff;
           border-radius: 16px;
-          box-shadow: 0 8px 28px rgba(0,0,0,0.08);
-          padding: 20px 18px;                    /* menos padding interno */
+          box-shadow: 0 8px 28px rgba(0,0,0,0.15);
+          padding: 20px;
           text-align: center;
           border: 1px solid #eaeaea;
-          animation: cardIn 900ms ease-out both; /* entrada más lenta del card */
+          animation: cardIn 1000ms ease-out both;
         }}
 
-        /* ==== Logo animado (mitad de tamaño y transición más lenta) ==== */
         .mp-logo {{
-          width: 70px;                            /* mitad del tamaño (antes 140px) */
+          width: 70px;                   /* logo más chico */
           margin: 0 auto 12px auto;
           display: block;
-          animation: logoIn 900ms ease-out both,  /* más lenta */
-                     logoPulse 3000ms ease-in-out 900ms infinite; /* pulso más largo */
+          animation: logoIn 1000ms ease-out both,
+                     logoPulse 3000ms ease-in-out 1000ms infinite;
           transform-origin: center;
         }}
         @keyframes cardIn {{
-          0%   {{ opacity: 0; transform: translateY(8px) scale(0.98); }}
+          0%   {{ opacity: 0; transform: translateY(12px) scale(0.96); }}
           100% {{ opacity: 1; transform: translateY(0)   scale(1); }}
         }}
         @keyframes logoIn {{
-          0%   {{ opacity: 0; transform: scale(0.85) translateY(6px); }}
-          100% {{ opacity: 1; transform: scale(1)     translateY(0);  }}
+          0%   {{ opacity: 0; transform: scale(0.8) translateY(8px); }}
+          100% {{ opacity: 1; transform: scale(1)   translateY(0);  }}
         }}
         @keyframes logoPulse {{
           0%, 100% {{ transform: scale(1); }}
-          50%      {{ transform: scale(1.035); }}
+          50%      {{ transform: scale(1.04); }}
         }}
 
-        .mp-title {{ font-size: 1.15rem; font-weight: 700; margin-bottom: 4px; }}
-        .mp-subtitle {{ color: #5f6368; font-size: 0.95rem; margin-bottom: 12px; }}
+        .mp-title {{ font-size: 1.1rem; font-weight: 700; margin-bottom: 4px; }}
+        .mp-subtitle {{ color: #5f6368; font-size: 0.9rem; margin-bottom: 12px; }}
 
         .mp-summary {{
           text-align: left;
           background: #fafafa;
           border: 1px solid #e0e0e0;
           border-radius: 12px;
-          padding: 10px 12px;                    /* menos padding */
-          margin: 10px 0 14px 0;                 /* menos margen */
-          font-size: 0.95rem;
+          padding: 10px 12px;
+          margin: 10px 0 14px 0;
+          font-size: 0.9rem;
         }}
-        .mp-kv {{ display: flex; justify-content: space-between; gap: 10px; margin: 3px 0; }}
+        .mp-kv {{ display: flex; justify-content: space-between; gap: 8px; margin: 3px 0; }}
         .mp-kv .k {{ color: #616161; }} .mp-kv .v {{ font-weight: 600; text-align: right; }}
 
         .mp-actions {{
-          display: grid;
-          grid-template-columns: 1fr 1fr;
-          gap: 10px;
-          margin-top: 8px;                        /* menos separación */
+          display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 8px;
         }}
         .btn {{
           display: inline-block; text-decoration: none; text-align: center;
-          border-radius: 10px; padding: 10px 14px; border: 1px solid rgba(0,0,0,0.08);
-          background: #fff; color: #111;
+          border-radius: 10px; padding: 8px 12px;
+          border: 1px solid rgba(0,0,0,0.08);
+          background: #fff; color: #111; font-size: 0.9rem;
         }}
         .btn-primary {{ background: #2E7D32; color: #fff; border: none; }}
-        .mp-muted {{ color: #666; font-size: 0.9rem; margin-top: 8px; }}
+        .mp-muted {{ color: #666; font-size: 0.85rem; margin-top: 8px; }}
       </style>
     </head>
     <body>
@@ -289,7 +282,6 @@ elif st.session_state.page == "confirmacion":
           {logo_img}
           <div class="mp-title">Evento registrado</div>
           <div class="mp-subtitle">Ticket generado correctamente</div>
-
           <div class="mp-summary">
             <div class="mp-kv"><div class="k">Fecha y hora</div><div class="v">{d.get('timestamp','-')}</div></div>
             <div class="mp-kv"><div class="k">Línea</div><div class="v">{d.get('linea','-')}</div></div>
@@ -299,12 +291,10 @@ elif st.session_state.page == "confirmacion":
             <div class="mp-kv"><div class="k">Minutos</div><div class="v">{d.get('minutos','-')}</div></div>
             <div class="mp-kv"><div class="k">Usuario</div><div class="v">{d.get('user','-')}</div></div>
           </div>
-
           <div class="mp-actions">
             <a class="btn" href="?action=ticket">Ver detalle</a>
             <a class="btn btn-primary" href="?action=home">Registrar otro</a>
           </div>
-
           <div class="mp-muted">Podés cerrar esta ventana o continuar con las opciones.</div>
         </div>
       </div>
@@ -312,6 +302,5 @@ elif st.session_state.page == "confirmacion":
     </html>
     """
 
-    # Render SIEMPRE en el placeholder global (limpiable)
     with st.session_state.overlay_slot:
-        html(overlay_html, height=900, scrolling=False)
+        html(overlay_html, height=600, scrolling=False)
