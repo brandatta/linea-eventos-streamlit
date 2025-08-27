@@ -281,7 +281,8 @@ elif st.session_state.page == "confirmacion":
 
     # Render SIEMPRE en el mismo placeholder/clave para no apilar overlays
     overlay_slot = st.empty()
-    overlay_slot.html(overlay_html, height=800, scrolling=False, key="confirm_overlay")
+    with overlay_slot:
+        html(overlay_html, height=800, scrolling=False, key="confirm_overlay")
     st.session_state.overlay_rendered = True
 
 # Página: Splash (no usada; por compatibilidad)
