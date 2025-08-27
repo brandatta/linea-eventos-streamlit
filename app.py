@@ -252,9 +252,12 @@ elif st.session_state.page == "confirmacion":
         }}
         .mp-overlay {{
           position: fixed; inset: 0;
-          background: transparent;     /* ✅ sin gris detrás */
+          background: transparent;
           z-index: 9999;
-          display: grid; place-items: center;
+          display: flex;
+          justify-content: center;   /* centrar horizontal */
+          align-items: flex-start;   /* alinear arriba */
+          padding-top: 10vh;         /* espacio desde arriba (ajustable) */
         }}
         .mp-card {{
           width: 540px;
