@@ -30,11 +30,11 @@ def get_logo_b64(path="logorelleno.png"):
 # ======= MySQL: conexión e inserción =======
 def get_connection():
     return mysql.connector.connect(
-        host=st.secrets["app_marco_new"]["host"],
-        user=st.secrets["app_marco_new"]["user"],
-        password=st.secrets["app_marco_new"]["password"],
-        database=st.secrets["app_marco_new"]["database"],
-        port=st.secrets["app_marco_new"].get("port", 3306),
+        host=st.secrets["app_db"]["host"],
+        user=st.secrets["app_db"]["user"],
+        password=st.secrets["app_db"]["password"],
+        database=st.secrets["app_db"]["database"],
+        port=st.secrets["app_db"].get("port", 3306),
     )
 
 def insertar_evento(data: dict):
