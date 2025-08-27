@@ -1,6 +1,7 @@
 import streamlit as st
 import datetime
 import base64
+import pandas as pd
 import mysql.connector
 from streamlit.components.v1 import html  # Overlay HTML full-screen
 
@@ -13,8 +14,13 @@ st.markdown("""
     .stButton>button { padding: 0.45rem 0.8rem; }
     .stSelectbox, .stTextInput, .stTextArea { margin-bottom: 0.5rem; }
     .kpi { font-weight: 600; }
-    /* achicar espacios verticales entre bloques */
     [data-testid="stVerticalBlock"] > div:has(> .stColumn) { margin-bottom: 0.5rem; }
+    .kpi-card {
+        border: 1px solid #eee; border-radius: 10px; padding: 10px 12px;
+        background: #fff;
+    }
+    .kpi-title { color: #666; font-size: 0.85rem; margin-bottom: 4px; }
+    .kpi-value { font-size: 1.2rem; font-weight: 700; }
     </style>
 """, unsafe_allow_html=True)
 
@@ -27,37 +33,17 @@ def get_logo_b64(path="logorelleno.png"):
     except Exception:
         return None
 
-# ======= MySQL: conexión e inserción =======
+# ======= MySQL: conexión y utils =======
 def get_connection():
     return mysql.connector.connect(
         host=st.secrets["app_bd"]["host"],
         user=st.secrets["app_bd"]["user"],
         password=st.secrets["app_bd"]["password"],
         database=st.secrets["app_bd"]["database"],
-        port=st.secrets["app_bd"].get("port", 3306),
+        port=int(st.secrets["app_bd"].get("port", 3306)),
     )
 
 def insertar_evento(data: dict):
-    """
-    Inserta un registro en la tabla `eventos`.
-    Estructura sugerida de la tabla:
-
-    CREATE TABLE eventos (
-        id INT AUTO_INCREMENT PRIMARY KEY,
-        fecha_registro TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        linea VARCHAR(50) NOT NULL,
-        usuario VARCHAR(100) NOT NULL,
-        tipo ENUM('interrupcion','novedad') NOT NULL,
-        motivo VARCHAR(255) NOT NULL,
-        submotivo VARCHAR(255) DEFAULT NULL,
-        componente VARCHAR(255) DEFAULT NULL,
-        hora_inicio TIME DEFAULT NULL,
-        hora_fin TIME DEFAULT NULL,
-        minutos INT DEFAULT NULL,
-        comentario TEXT,
-        registrado_por VARCHAR(100) DEFAULT NULL
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-    """
     conn = get_connection()
     try:
         cur = conn.cursor()
@@ -74,11 +60,11 @@ def insertar_evento(data: dict):
             data.get("motivo"),
             data.get("submotivo"),
             data.get("componente"),
-            data.get("start") if data.get("start") else None,  # "HH:MM" o None
-            data.get("end") if data.get("end") else None,      # "HH:MM" o None
+            data.get("start") if data.get("start") else None,
+            data.get("end") if data.get("end") else None,
             data.get("minutos"),
             data.get("comentario"),
-            data.get("user"),  # registrado_por (podés cambiarlo si querés)
+            data.get("user"),
         )
         cur.execute(sql, valores)
         conn.commit()
@@ -87,6 +73,67 @@ def insertar_evento(data: dict):
             cur.close()
         except Exception:
             pass
+        conn.close()
+
+@st.cache_data(show_spinner=False)
+def fetch_distinct_campos():
+    """Trae opciones para filtros (línea, usuario, motivo, componente, tipo)."""
+    conn = get_connection()
+    try:
+        dfs = {}
+        for campo in ["linea", "usuario", "motivo", "componente", "tipo"]:
+            q = f"SELECT DISTINCT {campo} AS val FROM eventos WHERE {campo} IS NOT NULL AND {campo}<>'' ORDER BY 1;"
+            dfs[campo] = pd.read_sql(q, conn)["val"].tolist()
+        return dfs
+    finally:
+        conn.close()
+
+@st.cache_data(show_spinner=False)
+def fetch_eventos(fecha_desde=None, fecha_hasta=None,
+                  lineas=None, tipos=None, usuarios=None,
+                  motivos=None, componentes=None, limit=5000):
+    """
+    Devuelve un DataFrame con eventos filtrados.
+    Las fechas filtran por fecha_registro (timestamp de inserción).
+    """
+    conn = get_connection()
+    try:
+        base = """
+            SELECT id, fecha_registro, linea, usuario, tipo, motivo, submotivo, componente,
+                   hora_inicio, hora_fin, minutos, comentario, registrado_por
+            FROM eventos
+            WHERE 1=1
+        """
+        params = {}
+        if fecha_desde:
+            base += " AND fecha_registro >= %(fdesde)s"
+            params["fdesde"] = datetime.datetime.combine(fecha_desde, datetime.time.min)
+        if fecha_hasta:
+            # incluir todo el día
+            base += " AND fecha_registro < %(fhasta)s"
+            params["fhasta"] = datetime.datetime.combine(fecha_hasta, datetime.time.max)
+
+        def add_in(clave, valores, col):
+            nonlocal base, params
+            if valores:
+                ph = ", ".join([f"%({clave}{i})s" for i in range(len(valores))])
+                base += f" AND {col} IN ({ph})"
+                for i, v in enumerate(valores):
+                    params[f"{clave}{i}"] = v
+
+        add_in("linea", lineas, "linea")
+        add_in("tipo", tipos, "tipo")
+        add_in("usuario", usuarios, "usuario")
+        add_in("motivo", motivos, "motivo")
+        add_in("comp", componentes, "componente")
+
+        base += " ORDER BY fecha_registro DESC"
+        if limit:
+            base += f" LIMIT {int(limit)}"
+
+        df = pd.read_sql(base, conn, params=params)
+        return df
+    finally:
         conn.close()
 
 # ======= Inicialización de estado =======
@@ -148,6 +195,10 @@ if st.session_state.page == "linea":
     if c3.button("Línea 3", use_container_width=True):
         st.session_state.data['linea'] = "Línea 3"
         go_to("user")
+
+    st.divider()
+    if st.button("📊 Ver dashboard", use_container_width=True):
+        go_to("dashboard")
 
 # ======= Página: Seleccionar Usuario =======
 elif st.session_state.page == "user":
@@ -291,7 +342,7 @@ elif st.session_state.page == "ticket":
     c1, c2 = st.columns(2)
     with c1:
         if st.button("Confirmar", use_container_width=True):
-            # ⬇️ Insertar en MySQL antes de mostrar la confirmación
+            # Guardar en MySQL antes de mostrar la confirmación
             try:
                 insertar_evento(st.session_state.data)
             except Exception as e:
@@ -302,7 +353,104 @@ elif st.session_state.page == "ticket":
         if st.button("Cancelar", use_container_width=True):
             reset_to_home()
 
-# ======= Página: Confirmación (modal sin fondo gris) =======
+# ======= Página: Dashboard (listar y filtrar eventos) =======
+elif st.session_state.page == "dashboard":
+    clear_overlay()
+    st.header("📊 Dashboard de eventos")
+
+    # Opciones de filtros
+    try:
+        opts = fetch_distinct_campos()
+    except Exception as e:
+        st.error(f"No se pudieron cargar opciones de filtros: {e}")
+        opts = {"linea": [], "usuario": [], "motivo": [], "componente": [], "tipo": []}
+
+    colf1, colf2, colf3 = st.columns(3)
+    with colf1:
+        fecha_desde = st.date_input("Desde", value=None, format="DD/MM/YYYY")
+    with colf2:
+        fecha_hasta = st.date_input("Hasta", value=None, format="DD/MM/YYYY")
+    with colf3:
+        limit = st.number_input("Límite de filas", 100, 100000, 5000, step=100)
+
+    cold1, cold2, cold3 = st.columns(3)
+    with cold1:
+        lineas = st.multiselect("Líneas", opts.get("linea", []))
+        tipos = st.multiselect("Tipos", opts.get("tipo", []))
+    with cold2:
+        usuarios = st.multiselect("Usuarios", opts.get("usuario", []))
+        motivos = st.multiselect("Motivos", opts.get("motivo", []))
+    with cold3:
+        componentes = st.multiselect("Componentes", opts.get("componente", []))
+
+    if st.button("Actualizar", use_container_width=True):
+        st.cache_data.clear()  # por si hubo nuevas inserciones
+
+    # Cargar datos
+    try:
+        df = fetch_eventos(
+            fecha_desde=fecha_desde if isinstance(fecha_desde, datetime.date) else None,
+            fecha_hasta=fecha_hasta if isinstance(fecha_hasta, datetime.date) else None,
+            lineas=lineas or None,
+            tipos=tipos or None,
+            usuarios=usuarios or None,
+            motivos=motivos or None,
+            componentes=componentes or None,
+            limit=limit,
+        )
+    except Exception as e:
+        st.error(f"Error consultando la base: {e}")
+        df = pd.DataFrame()
+
+    # KPIs
+    c_k1, c_k2, c_k3, c_k4 = st.columns(4)
+    total_eventos = int(df.shape[0]) if not df.empty else 0
+    total_minutos = int(df["minutos"].fillna(0).sum()) if not df.empty and "minutos" in df else 0
+    interrupciones = int((df["tipo"] == "interrupcion").sum()) if not df.empty and "tipo" in df else 0
+    novedades = int((df["tipo"] == "novedad").sum()) if not df.empty and "tipo" in df else 0
+
+    with c_k1:
+        st.markdown('<div class="kpi-card"><div class="kpi-title">Total eventos</div>'
+                    f'<div class="kpi-value">{total_eventos}</div></div>', unsafe_allow_html=True)
+    with c_k2:
+        st.markdown('<div class="kpi-card"><div class="kpi-title">Minutos (suma)</div>'
+                    f'<div class="kpi-value">{total_minutos}</div></div>', unsafe_allow_html=True)
+    with c_k3:
+        st.markdown('<div class="kpi-card"><div class="kpi-title">Interrupciones</div>'
+                    f'<div class="kpi-value">{interrupciones}</div></div>', unsafe_allow_html=True)
+    with c_k4:
+        st.markdown('<div class="kpi-card"><div class="kpi-title">Novedades</div>'
+                    f'<div class="kpi-value">{novedades}</div></div>', unsafe_allow_html=True)
+
+    st.subheader("Tabla de eventos")
+    if df.empty:
+        st.info("No hay datos para los filtros actuales.")
+    else:
+        # Un pequeño orden
+        cols_order = ["id", "fecha_registro", "linea", "usuario", "tipo", "motivo",
+                      "submotivo", "componente", "hora_inicio", "hora_fin", "minutos",
+                      "comentario", "registrado_por"]
+        cols_order = [c for c in cols_order if c in df.columns]
+        df = df[cols_order]
+        st.dataframe(df, use_container_width=True, height=420)
+
+        # Exportar CSV
+        csv = df.to_csv(index=False).encode("utf-8-sig")
+        st.download_button(
+            "⬇️ Descargar CSV",
+            data=csv,
+            file_name="eventos.csv",
+            mime="text/csv",
+            use_container_width=True
+        )
+
+    st.divider()
+    col_bk1, col_bk2 = st.columns(2)
+    with col_bk1:
+        if st.button("⬅️ Volver al inicio", use_container_width=True):
+            go_to("linea")
+
+# ======= Página: Confirmación (modal sin fondo gris, arriba) =======
 elif st.session_state.page == "confirmacion":
     d = st.session_state.data
     logo_b64 = get_logo_b64("logorelleno.png")
@@ -326,7 +474,7 @@ elif st.session_state.page == "confirmacion":
           display: flex;
           justify-content: center;   /* centrar horizontal */
           align-items: flex-start;   /* alinear arriba */
-          padding-top: 4vh;         /* espacio desde arriba (ajustable) */
+          padding-top: 1.5vh;        /* bien arriba */
         }}
         .mp-card {{
           width: 540px;
@@ -341,7 +489,7 @@ elif st.session_state.page == "confirmacion":
         }}
 
         .mp-logo {{
-          width: 45px;                   /* logo chico */
+          width: 45px;                   /* logo más chico */
           margin: 0 auto 12px auto;
           display: block;
           animation: logoIn 1000ms ease-out both,
