@@ -257,7 +257,7 @@ elif st.session_state.page == "confirmacion":
           display: flex;
           justify-content: center;   /* centrar horizontal */
           align-items: flex-start;   /* alinear arriba */
-          padding-top: 10vh;         /* espacio desde arriba (ajustable) */
+          padding-top: 5vh;         /* espacio desde arriba (ajustable) */
         }}
         .mp-card {{
           width: 540px;
