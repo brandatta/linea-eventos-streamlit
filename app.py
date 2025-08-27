@@ -1,6 +1,7 @@
 import streamlit as st
 import datetime
 import base64
+import mysql.connector
 from streamlit.components.v1 import html  # Overlay HTML full-screen
 
 # ======= Estilos compactos (menos scroll) =======
@@ -25,6 +26,68 @@ def get_logo_b64(path="logorelleno.png"):
             return base64.b64encode(f.read()).decode("utf-8")
     except Exception:
         return None
+
+# ======= MySQL: conexión e inserción =======
+def get_connection():
+    return mysql.connector.connect(
+        host=st.secrets["app_marco_new"]["host"],
+        user=st.secrets["app_marco_new"]["user"],
+        password=st.secrets["app_marco_new"]["password"],
+        database=st.secrets["app_marco_new"]["database"],
+        port=st.secrets["app_marco_new"].get("port", 3306),
+    )
+
+def insertar_evento(data: dict):
+    """
+    Inserta un registro en la tabla `eventos`.
+    Estructura sugerida de la tabla:
+
+    CREATE TABLE eventos (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        fecha_registro TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        linea VARCHAR(50) NOT NULL,
+        usuario VARCHAR(100) NOT NULL,
+        tipo ENUM('interrupcion','novedad') NOT NULL,
+        motivo VARCHAR(255) NOT NULL,
+        submotivo VARCHAR(255) DEFAULT NULL,
+        componente VARCHAR(255) DEFAULT NULL,
+        hora_inicio TIME DEFAULT NULL,
+        hora_fin TIME DEFAULT NULL,
+        minutos INT DEFAULT NULL,
+        comentario TEXT,
+        registrado_por VARCHAR(100) DEFAULT NULL
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    """
+    conn = get_connection()
+    try:
+        cur = conn.cursor()
+        sql = """
+            INSERT INTO eventos
+            (linea, usuario, tipo, motivo, submotivo, componente,
+             hora_inicio, hora_fin, minutos, comentario, registrado_por)
+            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+        """
+        valores = (
+            data.get("linea"),
+            data.get("user"),
+            data.get("tipo"),
+            data.get("motivo"),
+            data.get("submotivo"),
+            data.get("componente"),
+            data.get("start") if data.get("start") else None,  # "HH:MM" o None
+            data.get("end") if data.get("end") else None,      # "HH:MM" o None
+            data.get("minutos"),
+            data.get("comentario"),
+            data.get("user"),  # registrado_por (podés cambiarlo si querés)
+        )
+        cur.execute(sql, valores)
+        conn.commit()
+    finally:
+        try:
+            cur.close()
+        except Exception:
+            pass
+        conn.close()
 
 # ======= Inicialización de estado =======
 def init_state():
@@ -228,6 +291,12 @@ elif st.session_state.page == "ticket":
     c1, c2 = st.columns(2)
     with c1:
         if st.button("Confirmar", use_container_width=True):
+            # ⬇️ Insertar en MySQL antes de mostrar la confirmación
+            try:
+                insertar_evento(st.session_state.data)
+            except Exception as e:
+                st.error(f"Error al guardar en la base de datos: {e}")
+                st.stop()
             go_to("confirmacion")
     with c2:
         if st.button("Cancelar", use_container_width=True):
