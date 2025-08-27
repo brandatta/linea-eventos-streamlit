@@ -26,11 +26,15 @@ def init_state():
         st.session_state.page = 'linea'
     if 'data' not in st.session_state:
         st.session_state.data = {}
+    if 'overlay_rendered' not in st.session_state:
+        st.session_state.overlay_rendered = False  # evita overlays duplicados
 
 def reset_to_home():
+    # Limpiar estado y asegurar que el overlay se pueda renderizar de nuevo, sin duplicar
     st.session_state.clear()
     st.session_state.page = 'linea'
     st.session_state.data = {}
+    st.session_state.overlay_rendered = False
 
 init_state()
 
@@ -43,6 +47,7 @@ if "action" in params:
         st.query_params.clear()
     elif act == "ticket":
         st.session_state.page = "ticket"
+        st.session_state.overlay_rendered = False
         st.query_params.clear()
 
 def go_to(page):
@@ -183,7 +188,7 @@ elif st.session_state.page == "ticket":
         if st.button("Cancelar"):
             reset_to_home()
 
-# Página: Confirmación (overlay HTML full-screen con LOGO animado y título único)
+# Página: Confirmación (overlay HTML full-screen con LOGO animado y control anti-duplicado)
 elif st.session_state.page == "confirmacion":
     d = st.session_state.data
     logo_b64 = get_logo_b64("logorelleno.png")  # ajustá la ruta si está en /assets/ u otra carpeta
@@ -249,7 +254,7 @@ elif st.session_state.page == "confirmacion":
       <div class="mp-overlay">
         <div class="mp-card">
           {logo_img}
-          <div class="mp-title">Evento registrado</div>  <!-- TÍTULO ÚNICO -->
+          <div class="mp-title">Evento registrado</div>
           <div class="mp-subtitle">Ticket generado correctamente</div>
 
           <div class="mp-summary">
@@ -273,4 +278,15 @@ elif st.session_state.page == "confirmacion":
     </body>
     </html>
     """
-    html(overlay_html, height=800, scrolling=False)
+
+    # Render SIEMPRE en el mismo placeholder/clave para no apilar overlays
+    overlay_slot = st.empty()
+    overlay_slot.html(overlay_html, height=800, scrolling=False, key="confirm_overlay")
+    st.session_state.overlay_rendered = True
+
+# Página: Splash (no usada; por compatibilidad)
+elif st.session_state.page == "splash":
+    st.success("✅ Evento registrado correctamente.")
+    st.write("Volver al inicio:")
+    if st.button("Volver"):
+        reset_to_home()
