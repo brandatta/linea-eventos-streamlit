@@ -341,7 +341,7 @@ elif st.session_state.page == "confirmacion":
         }}
 
         .mp-logo {{
-          width: 70px;                   /* logo chico */
+          width: 45px;                   /* logo chico */
           margin: 0 auto 12px auto;
           display: block;
           animation: logoIn 1000ms ease-out both,
