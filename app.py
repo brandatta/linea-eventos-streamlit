@@ -1,75 +1,17 @@
 import streamlit as st
 import datetime
 import time
-import uuid
+from streamlit.components.v1 import html  # 👈 para overlay full-screen
 
-# ======= Estilos globales (oculta header blanco y afina layout) =======
+# ======= Estilos (evita que se corte el título) =======
 st.markdown("""
     <style>
-    /* Ocultar completamente el header/menú/footer de Streamlit */
-    header { visibility: hidden; }
-    [data-testid="stHeader"] { display: none; }
-    #MainMenu { visibility: hidden; }
-    footer { visibility: hidden; }
-
-    /* Ajuste general del contenedor principal */
-    .block-container { padding-top: 1rem; }
-
-    /* Tipografías compactas para títulos */
-    h1, h2, h3 { font-size: 1.2rem !important; }
-
-    /* ====== Estilos de confirmación tipo Mercado Pago ====== */
-    .mp-full {
-        min-height: 88vh;  /* ocupa casi toda la pantalla */
-        display: flex; align-items: center; justify-content: center;
+    .block-container {
+        padding-top: 3rem;  /* margen superior suficiente */
     }
-    .mp-card {
-        width: min(520px, 92vw);
-        background: #ffffff;
-        border-radius: 16px;
-        box-shadow: 0 8px 28px rgba(0,0,0,0.08);
-        padding: 28px 24px;
-        border: 1px solid rgba(0,0,0,0.06);
-        text-align: center;
+    h1, h2, h3 {
+        font-size: 1.2rem !important;
     }
-    .mp-check {
-        width: 82px; height: 82px; border-radius: 50%;
-        background: #edf7f0; margin: 0 auto 16px auto; display: grid; place-items: center;
-        border: 2px solid #2E7D32;
-        animation: popIn 300ms ease-out;
-    }
-    .mp-check svg {
-        width: 44px; height: 44px;
-        stroke: #2E7D32; fill: none; stroke-width: 3px; stroke-linecap: round; stroke-linejoin: round;
-        animation: draw 500ms ease-out forwards;
-    }
-    @keyframes popIn { 0% { transform: scale(0.9); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
-    @keyframes draw { 0% { stroke-dasharray: 0 100; } 100% { stroke-dasharray: 100 0; } }
-
-    .mp-title { font-size: 1.2rem; font-weight: 700; margin-bottom: 6px; }
-    .mp-subtitle { color: #5f6368; font-size: 0.96rem; margin-bottom: 14px; }
-
-    .mp-summary {
-        text-align: left;
-        background: #fafafa;
-        border: 1px solid rgba(0,0,0,0.06);
-        border-radius: 12px;
-        padding: 12px 14px;
-        margin: 14px 0 18px 0;
-        font-size: 0.95rem;
-        line-height: 1.35rem;
-    }
-    .mp-kv { display: flex; justify-content: space-between; gap: 12px; margin: 4px 0; }
-    .mp-kv .k { color: #616161; }
-    .mp-kv .v { font-weight: 600; text-align: right; }
-
-    .mp-actions {
-        display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px;
-    }
-    .mp-btn { border-radius: 10px; padding: 10px 14px; border: 1px solid rgba(0,0,0,0.08); }
-    .mp-btn-primary { background: #2E7D32; color: white; border: none; }
-
-    .mp-muted { color: #666; font-size: 0.9rem; margin-top: 10px; }
     </style>
 """, unsafe_allow_html=True)
 
@@ -87,6 +29,17 @@ def reset_to_home():
     st.session_state.data = {}
 
 init_state()
+
+# ======= Handler de acciones via query params (desde el overlay) =======
+params = st.query_params
+if "action" in params:
+    act = params.get("action")
+    if act == "home":
+        reset_to_home()
+        st.query_params.clear()
+    elif act == "ticket":
+        st.session_state.page = "ticket"
+        st.query_params.clear()
 
 def go_to(page):
     st.session_state.page = page
@@ -196,16 +149,12 @@ elif st.session_state.page == "form":
                 st.error("⛔ Formato de hora inválido. Usá HH:MM.")
                 st.stop()
 
-        # Generar ID de ticket simple (opcional)
-        ticket_id = uuid.uuid4().hex[:8].upper()
-
         st.session_state.data.update({
             "start": start_time_str if tipo == "interrupcion" else None,
             "end": end_time_str if tipo == "interrupcion" else None,
             "minutos": minutos,
             "comentario": comentario,
-            "timestamp": str(datetime.datetime.now()),
-            "ticket_id": ticket_id
+            "timestamp": str(datetime.datetime.now())
         })
         go_to("ticket")
 
@@ -221,61 +170,108 @@ elif st.session_state.page == "ticket":
     st.write(f"**Minutos:** {data.get('minutos', '-')}")
     st.write(f"**Comentario:** {data.get('comentario','-')}")
     st.write(f"**Usuario:** {data.get('user','-')}")
-    st.write(f"**ID Ticket:** `{data.get('ticket_id','-')}`")
 
     col1, col2 = st.columns(2)
     with col1:
         if st.button("Confirmar"):
-            go_to("confirmacion")   # 👈 ahora va a la nueva página de confirmación
+            go_to("confirmacion")   # 👉 ahora vamos al overlay HTML
     with col2:
         if st.button("Cancelar"):
             reset_to_home()
 
-# Página: Confirmación (estilo Mercado Pago, sin bloques de Streamlit)
+# Página: Confirmación (overlay HTML full-screen, sin bloques de Streamlit)
 elif st.session_state.page == "confirmacion":
-    data = st.session_state.data
-
-    # Contenedor full-screen centrado
-    st.markdown('<div class="mp-full"><div class="mp-card">', unsafe_allow_html=True)
-
-    # Ícono de check
-    st.markdown("""
-        <div class="mp-check">
+    d = st.session_state.data
+    # Armamos el HTML del overlay. Usa position:fixed y cubre todo (nada de Streamlit se ve).
+    overlay_html = f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8" />
+      <meta name="viewport" content="width=device-width, initial-scale=1" />
+      <style>
+        :root {{
+          --ok: #2E7D32;           /* verde sobrio */
+          --ok-bg: #edf7f0;
+          --text-muted: #5f6368;
+          --card-bg: #fff;
+          --border: rgba(0,0,0,0.06);
+          --shadow: 0 8px 28px rgba(0,0,0,0.08);
+        }}
+        html, body {{
+          margin: 0; padding: 0; background: #f6f7f9; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial;
+        }}
+        .mp-overlay {{
+          position: fixed; inset: 0; background: #f6f7f9; z-index: 9999;
+          display: grid; place-items: center;
+        }}
+        .mp-card {{
+          width: min(520px, 92vw); background: var(--card-bg); border-radius: 16px;
+          box-shadow: var(--shadow); padding: 28px 24px; border: 1px solid var(--border); text-align: center;
+        }}
+        .mp-check {{
+          width: 82px; height: 82px; border-radius: 50%; background: var(--ok-bg); margin: 0 auto 16px auto;
+          display: grid; place-items: center; border: 2px solid var(--ok); animation: popIn 300ms ease-out;
+        }}
+        .mp-check svg {{
+          width: 44px; height: 44px; stroke: var(--ok); fill: none; stroke-width: 3px;
+          stroke-linecap: round; stroke-linejoin: round; animation: draw 500ms ease-out forwards;
+        }}
+        @keyframes popIn {{ 0% {{ transform: scale(0.9); opacity: 0; }} 100% {{ transform: scale(1); opacity: 1; }} }}
+        @keyframes draw {{ 0% {{ stroke-dasharray: 0 100; }} 100% {{ stroke-dasharray: 100 0; }} }}
+        .mp-title {{ font-size: 1.2rem; font-weight: 700; margin-bottom: 6px; }}
+        .mp-subtitle {{ color: var(--text-muted); font-size: 0.96rem; margin-bottom: 14px; }}
+        .mp-summary {{
+          text-align: left; background: #fafafa; border: 1px solid var(--border); border-radius: 12px;
+          padding: 12px 14px; margin: 14px 0 18px 0; font-size: 0.95rem; line-height: 1.35rem;
+        }}
+        .mp-kv {{ display: flex; justify-content: space-between; gap: 12px; margin: 4px 0; }}
+        .mp-kv .k {{ color: #616161; }}
+        .mp-kv .v {{ font-weight: 600; text-align: right; }}
+        .mp-actions {{ display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; }}
+        .btn {{
+          display: inline-block; text-decoration: none; text-align: center;
+          border-radius: 10px; padding: 10px 14px; border: 1px solid rgba(0,0,0,0.08); color: #111;
+          background: #fff;
+        }}
+        .btn-primary {{ background: var(--ok); color: #fff; border: none; }}
+        .mp-muted {{ color: #666; font-size: 0.9rem; margin-top: 10px; }}
+      </style>
+    </head>
+    <body>
+      <div class="mp-overlay">
+        <div class="mp-card">
+          <div class="mp-check">
             <svg viewBox="0 0 52 52"><path d="M14 27 L22 35 L38 17"></path></svg>
+          </div>
+          <div class="mp-title">Evento registrado</div>
+          <div class="mp-subtitle">Ticket generado correctamente</div>
+
+          <div class="mp-summary">
+            <div class="mp-kv"><div class="k">Fecha y hora</div><div class="v">{d.get('timestamp','-')}</div></div>
+            <div class="mp-kv"><div class="k">Línea</div><div class="v">{d.get('linea','-')}</div></div>
+            <div class="mp-kv"><div class="k">Motivo</div><div class="v">{d.get('motivo','-')}</div></div>
+            <div class="mp-kv"><div class="k">Submotivo</div><div class="v">{d.get('submotivo','-')}</div></div>
+            <div class="mp-kv"><div class="k">Componente</div><div class="v">{d.get('componente','-')}</div></div>
+            <div class="mp-kv"><div class="k">Minutos</div><div class="v">{d.get('minutos','-')}</div></div>
+            <div class="mp-kv"><div class="k">Usuario</div><div class="v">{d.get('user','-')}</div></div>
+          </div>
+
+          <div class="mp-actions">
+            <a class="btn" href="?action=ticket">Ver detalle</a>
+            <a class="btn btn-primary" href="?action=home">Registrar otro</a>
+          </div>
+
+          <div class="mp-muted">Podés cerrar esta ventana o continuar con las opciones.</div>
         </div>
-    """, unsafe_allow_html=True)
+      </div>
+    </body>
+    </html>
+    """
+    # Render del overlay (altura completa). No hay widgets de Streamlit visibles.
+    html(overlay_html, height=800, scrolling=False)
 
-    # Título + subtítulo
-    st.markdown(f"""
-        <div class="mp-title">Evento registrado</div>
-        <div class="mp-subtitle">ID Ticket: <b>{data.get('ticket_id','-')}</b></div>
-    """, unsafe_allow_html=True)
-
-    # Resumen
-    st.markdown('<div class="mp-summary">', unsafe_allow_html=True)
-    def kv(k, v):
-        st.markdown(f"""<div class="mp-kv"><div class="k">{k}</div><div class="v">{v}</div></div>""", unsafe_allow_html=True)
-    kv("Fecha y hora", data.get('timestamp','-'))
-    kv("Línea", data.get('linea','-'))
-    kv("Motivo", data.get('motivo','-'))
-    kv("Submotivo", data.get('submotivo','-'))
-    kv("Componente", data.get('componente','-'))
-    kv("Minutos", data.get('minutos','-'))
-    kv("Usuario", data.get('user','-'))
-    st.markdown("</div>", unsafe_allow_html=True)
-
-    # Botones de acción
-    colA, colB = st.columns(2)
-    with colA:
-        if st.button("Registrar otro evento", key="btn_otro", use_container_width=True):
-            reset_to_home()
-    with colB:
-        if st.button("Ver detalle del ticket", key="btn_detalle", use_container_width=True):
-            go_to("ticket")
-
-    st.markdown('</div></div>', unsafe_allow_html=True)
-
-# (Opcional) Página: Splash — ya no se usa, podés borrarla
+# Página: Splash (no usada, solo por compatibilidad)
 elif st.session_state.page == "splash":
     st.success("✅ Evento registrado correctamente.")
     st.write("Volver al inicio:")
