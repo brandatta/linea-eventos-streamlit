@@ -67,7 +67,9 @@ def go_to(page):
         clear_overlay()
     st.session_state.page = page
 
-st.title("App Registro de Eventos")
+# 👉 No mostrar el título cuando estoy en la confirmación
+if st.session_state.page != "confirmacion":
+    st.title("App Registro de Eventos")
 
 # Página: Seleccionar Línea
 if st.session_state.page == "linea":
@@ -290,4 +292,4 @@ elif st.session_state.page == "confirmacion":
 
     # Render SIEMPRE en el placeholder global (limpiable)
     with st.session_state.overlay_slot:
-        html(overlay_html, height=800, scrolling=False)
+        html(overlay_html, height=1000, scrolling=False)
