@@ -1,19 +1,24 @@
 import streamlit as st
 import datetime
-import time
+import base64
 from streamlit.components.v1 import html  # Overlay HTML full-screen
 
 # ======= Estilos (evita que se corte el título) =======
 st.markdown("""
     <style>
-    .block-container {
-        padding-top: 3rem;  /* margen superior suficiente */
-    }
-    h1, h2, h3 {
-        font-size: 1.2rem !important;
-    }
+    .block-container { padding-top: 3rem; }
+    h1, h2, h3 { font-size: 1.2rem !important; }
     </style>
 """, unsafe_allow_html=True)
+
+# ======= Util: cargar logo como base64 para usar en overlay HTML =======
+@st.cache_data(show_spinner=False)
+def get_logo_b64(path="logorelleno.png"):
+    try:
+        with open(path, "rb") as f:
+            return base64.b64encode(f.read()).decode("utf-8")
+    except Exception:
+        return None
 
 # ======= Inicialización de estado robusta =======
 def init_state():
@@ -23,7 +28,6 @@ def init_state():
         st.session_state.data = {}
 
 def reset_to_home():
-    # Limpiar y re-inicializar ambas claves para evitar AttributeError
     st.session_state.clear()
     st.session_state.page = 'linea'
     st.session_state.data = {}
@@ -174,15 +178,17 @@ elif st.session_state.page == "ticket":
     col1, col2 = st.columns(2)
     with col1:
         if st.button("Confirmar"):
-            go_to("confirmacion")   # 👉 overlay HTML sin bloques de Streamlit
+            go_to("confirmacion")
     with col2:
         if st.button("Cancelar"):
             reset_to_home()
 
-# Página: Confirmación (overlay HTML full-screen con LOGO en lugar del tilde)
+# Página: Confirmación (overlay HTML full-screen con LOGO embebido en base64)
 elif st.session_state.page == "confirmacion":
     d = st.session_state.data
-    # Ajustá 'logo.png' a tu ruta o URL pública si corresponde
+    logo_b64 = get_logo_b64("logorelleno.png")  # ajustá la ruta si está en /assets/ u otra carpeta
+    logo_img = f"<img src='data:image/png;base64,{logo_b64}' class='mp-logo' alt='Logo'>" if logo_b64 else "<div class='mp-title'>Evento registrado</div>"
+
     overlay_html = f"""
     <!DOCTYPE html>
     <html>
@@ -190,31 +196,27 @@ elif st.session_state.page == "confirmacion":
       <meta charset="utf-8" />
       <meta name="viewport" content="width=device-width, initial-scale=1" />
       <style>
-        :root {{
-          --ok: #2E7D32; --text-muted: #5f6368;
-          --card-bg: #fff; --border: rgba(0,0,0,0.06); --shadow: 0 8px 28px rgba(0,0,0,0.08);
-        }}
         html, body {{
           margin: 0; padding: 0; background: #f6f7f9;
-          font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial;
+          font-family: system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial;
         }}
         .mp-overlay {{
           position: fixed; inset: 0; background: #f6f7f9; z-index: 9999;
           display: grid; place-items: center;
         }}
         .mp-card {{
-          width: min(520px, 92vw); background: var(--card-bg); border-radius: 16px;
-          box-shadow: var(--shadow); padding: 28px 24px;
-          border: 1px solid var(--border); text-align: center;
+          width: min(520px, 92vw); background: #fff; border-radius: 16px;
+          box-shadow: 0 8px 28px rgba(0,0,0,0.08);
+          padding: 28px 24px; text-align: center; border: 1px solid #eaeaea;
         }}
         .mp-logo {{
           width: 140px; margin: 0 auto 16px auto; display: block;
         }}
         .mp-title {{ font-size: 1.2rem; font-weight: 700; margin-bottom: 6px; }}
-        .mp-subtitle {{ color: var(--text-muted); font-size: 0.96rem; margin-bottom: 14px; }}
+        .mp-subtitle {{ color: #5f6368; font-size: 0.96rem; margin-bottom: 14px; }}
         .mp-summary {{
-          text-align: left; background: #fafafa; border: 1px solid var(--border); border-radius: 12px;
-          padding: 12px 14px; margin: 14px 0 18px 0; font-size: 0.95rem; line-height: 1.35rem;
+          text-align: left; background: #fafafa; border: 1px solid #e0e0e0;
+          border-radius: 12px; padding: 12px 14px; margin: 14px 0 18px 0; font-size: 0.95rem;
         }}
         .mp-kv {{ display: flex; justify-content: space-between; gap: 12px; margin: 4px 0; }}
         .mp-kv .k {{ color: #616161; }} .mp-kv .v {{ font-weight: 600; text-align: right; }}
@@ -222,17 +224,17 @@ elif st.session_state.page == "confirmacion":
         .btn {{
           display: inline-block; text-decoration: none; text-align: center;
           border-radius: 10px; padding: 10px 14px; border: 1px solid rgba(0,0,0,0.08);
-          color: #111; background: #fff;
+          background: #fff; color: #111;
         }}
-        .btn-primary {{ background: var(--ok); color: #fff; border: none; }}
+        .btn-primary {{ background: #2E7D32; color: #fff; border: none; }}
         .mp-muted {{ color: #666; font-size: 0.9rem; margin-top: 10px; }}
       </style>
     </head>
     <body>
       <div class="mp-overlay">
         <div class="mp-card">
-          <img src="logo.png" class="mp-logo" alt="Logo"> <!-- 👈 Logo en lugar del tilde -->
-          <div class="mp-title">Evento registrado</div>
+          {logo_img}
+          {"<div class='mp-title'>Evento registrado</div>" if logo_b64 else ""}
           <div class="mp-subtitle">Ticket generado correctamente</div>
 
           <div class="mp-summary">
@@ -257,10 +259,3 @@ elif st.session_state.page == "confirmacion":
     </html>
     """
     html(overlay_html, height=800, scrolling=False)
-
-# Página: Splash (no usada; dejada por compatibilidad)
-elif st.session_state.page == "splash":
-    st.success("✅ Evento registrado correctamente.")
-    st.write("Volver al inicio:")
-    if st.button("Volver"):
-        reset_to_home()
