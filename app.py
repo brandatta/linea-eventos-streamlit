@@ -20,21 +20,17 @@ def get_logo_b64(path="logorelleno.png"):
     except Exception:
         return None
 
-# ======= Inicialización de estado robusta =======
+# ======= Inicialización de estado =======
 def init_state():
     if 'page' not in st.session_state:
         st.session_state.page = 'linea'
     if 'data' not in st.session_state:
         st.session_state.data = {}
-    if 'overlay_rendered' not in st.session_state:
-        st.session_state.overlay_rendered = False  # evita overlays duplicados
 
 def reset_to_home():
-    # Limpiar estado y asegurar que el overlay se pueda renderizar de nuevo, sin duplicar
     st.session_state.clear()
     st.session_state.page = 'linea'
     st.session_state.data = {}
-    st.session_state.overlay_rendered = False
 
 init_state()
 
@@ -47,7 +43,6 @@ if "action" in params:
         st.query_params.clear()
     elif act == "ticket":
         st.session_state.page = "ticket"
-        st.session_state.overlay_rendered = False
         st.query_params.clear()
 
 def go_to(page):
@@ -73,26 +68,16 @@ elif st.session_state.page == "user":
         st.session_state.data['user'] = user
         go_to("motivo")
 
-# Página: Seleccionar Motivo (actualizado con dropdown)
+# Página: Seleccionar Motivo
 elif st.session_state.page == "motivo":
     st.header("Selecciona un motivo")
     motivos = [
-        "CAMBIO DE LOTE",
-        "ROTURA DE AMPOLLAS",
-        "MAL CIERRE DE ESTUCHES",
-        "OTROS (GENERAL)",
-        "OTROS (CARGADORES)",
-        "OTROS (ESTUCHADORA)",
-        "CHUPETES",
-        "OTROS (KETAN)",
-        "BAJADA DE BLISTER",
-        "PROBLEMA DE TRAZABILIDAD",
-        "BAJADA PROSPECTOS",
-        "ERROR SISTEMA LIXIS",
-        "SISTEMA DE VISIÓN",
-        "CODIFICADO WOLKE",
-        "OTROS (BLISTERA)",
-        "FUERA DE PASO OPERATIVO B",
+        "CAMBIO DE LOTE", "ROTURA DE AMPOLLAS", "MAL CIERRE DE ESTUCHES",
+        "OTROS (GENERAL)", "OTROS (CARGADORES)", "OTROS (ESTUCHADORA)",
+        "CHUPETES", "OTROS (KETAN)", "BAJADA DE BLISTER",
+        "PROBLEMA DE TRAZABILIDAD", "BAJADA PROSPECTOS",
+        "ERROR SISTEMA LIXIS", "SISTEMA DE VISIÓN", "CODIFICADO WOLKE",
+        "OTROS (BLISTERA)", "FUERA DE PASO OPERATIVO B",
         "FALTA DE INSUMOS DE DEPOSITO"
     ]
     selected_motivo = st.selectbox("Motivo", [""] + motivos)
@@ -148,7 +133,6 @@ elif st.session_state.page == "form":
 
     if st.button("Confirmar"):
         minutos = None
-        # Validación de horario si es interrupción
         if tipo == "interrupcion":
             try:
                 start_dt = datetime.datetime.strptime(start_time_str, "%H:%M")
@@ -188,7 +172,7 @@ elif st.session_state.page == "ticket":
         if st.button("Cancelar"):
             reset_to_home()
 
-# Página: Confirmación (overlay HTML full-screen con LOGO animado y control anti-duplicado)
+# Página: Confirmación (overlay HTML full-screen con LOGO animado, sin key y sin duplicados)
 elif st.session_state.page == "confirmacion":
     d = st.session_state.data
     logo_b64 = get_logo_b64("logorelleno.png")  # ajustá la ruta si está en /assets/ u otra carpeta
@@ -279,11 +263,10 @@ elif st.session_state.page == "confirmacion":
     </html>
     """
 
-    # Render SIEMPRE en el mismo placeholder/clave para no apilar overlays
+    # Render en un único placeholder para no apilar overlays (sin 'key')
     overlay_slot = st.empty()
     with overlay_slot:
-        html(overlay_html, height=800, scrolling=False, key="confirm_overlay")
-    st.session_state.overlay_rendered = True
+        html(overlay_html, height=800, scrolling=False)
 
 # Página: Splash (no usada; por compatibilidad)
 elif st.session_state.page == "splash":
