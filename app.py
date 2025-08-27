@@ -2,11 +2,11 @@ import streamlit as st
 import datetime
 import time
 
-# Reducir margen superior y tamaño de títulos (ajustado)
+# ======= Estilos (evita que se corte el título) =======
 st.markdown("""
     <style>
     .block-container {
-        padding-top: 3rem;  /* Ajustado para que no se recorte el título */
+        padding-top: 3rem;  /* margen superior suficiente */
     }
     h1, h2, h3 {
         font-size: 1.2rem !important;
@@ -14,10 +14,20 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# Inicialización del estado
-if 'page' not in st.session_state:
+# ======= Inicialización de estado robusta =======
+def init_state():
+    if 'page' not in st.session_state:
+        st.session_state.page = 'linea'
+    if 'data' not in st.session_state:
+        st.session_state.data = {}
+
+def reset_to_home():
+    # Limpiar y re-inicializar ambas claves para evitar AttributeError
+    st.session_state.clear()
     st.session_state.page = 'linea'
     st.session_state.data = {}
+
+init_state()
 
 def go_to(page):
     st.session_state.page = page
@@ -29,6 +39,9 @@ if st.session_state.page == "linea":
     st.header("Selecciona una línea")
     for num in [1, 2, 3]:
         if st.button(f"Línea {num}"):
+            # Asegura que 'data' exista por si viene de una sesión previa sin esa clave
+            if 'data' not in st.session_state:
+                st.session_state.data = {}
             st.session_state.data['linea'] = f"Línea {num}"
             go_to("user")
 
@@ -85,7 +98,8 @@ elif st.session_state.page == "componente":
 
 # Página: Tipo de Evento
 elif st.session_state.page == "tipo":
-    st.header(f"Selecciona una opción para {st.session_state.data['linea']}")
+    linea_txt = st.session_state.data.get('linea', 'Línea')
+    st.header(f"Selecciona una opción para {linea_txt}")
     if st.button("Interrupción"):
         st.session_state.data["tipo"] = "interrupcion"
         go_to("form")
@@ -95,12 +109,13 @@ elif st.session_state.page == "tipo":
 
 # Página: Formulario
 elif st.session_state.page == "form":
-    tipo = st.session_state.data["tipo"]
-    st.header(f"{tipo.title()} - {st.session_state.data['linea']}")
+    tipo = st.session_state.data.get("tipo", "interrupcion")
+    linea_txt = st.session_state.data.get('linea', 'Línea')
+    st.header(f"{tipo.title()} - {linea_txt}")
     st.markdown(
-        f"**Motivo:** {st.session_state.data['motivo']} | "
-        f"**Submotivo:** {st.session_state.data['submotivo']} | "
-        f"**Componente:** {st.session_state.data['componente']}"
+        f"**Motivo:** {st.session_state.data.get('motivo','-')} | "
+        f"**Submotivo:** {st.session_state.data.get('submotivo','-')} | "
+        f"**Componente:** {st.session_state.data.get('componente','-')}"
     )
 
     if tipo == "interrupcion":
@@ -136,25 +151,26 @@ elif st.session_state.page == "form":
 elif st.session_state.page == "ticket":
     data = st.session_state.data
     st.subheader("Ticket")
-    st.write(f"**Fecha y hora:** {data['timestamp']}")
-    st.write(f"**Línea:** {data['linea']}")
-    st.write(f"**Motivo:** {data['motivo']}")
-    st.write(f"**Submotivo:** {data['submotivo']}")
-    st.write(f"**Componente:** {data['componente']}")
+    st.write(f"**Fecha y hora:** {data.get('timestamp','-')}")
+    st.write(f"**Línea:** {data.get('linea','-')}")
+    st.write(f"**Motivo:** {data.get('motivo','-')}")
+    st.write(f"**Submotivo:** {data.get('submotivo','-')}")
+    st.write(f"**Componente:** {data.get('componente','-')}")
     st.write(f"**Minutos:** {data.get('minutos', '-')}")
-    st.write(f"**Comentario:** {data['comentario']}")
-    st.write(f"**Usuario:** {data['user']}")
+    st.write(f"**Comentario:** {data.get('comentario','-')}")
+    st.write(f"**Usuario:** {data.get('user','-')}")
 
-    if st.button("Confirmar"):
-        go_to("splash")
-    if st.button("Cancelar"):
-        st.session_state.clear()
-        st.session_state.page = "linea"
+    col1, col2 = st.columns(2)
+    with col1:
+        if st.button("Confirmar"):
+            go_to("splash")
+    with col2:
+        if st.button("Cancelar"):
+            reset_to_home()
 
 # Página: Splash
 elif st.session_state.page == "splash":
     st.success("✅ Evento registrado correctamente.")
     st.write("Volver al inicio:")
     if st.button("Volver"):
-        st.session_state.clear()
-        st.session_state.page = "linea"
+        reset_to_home()
