@@ -61,9 +61,6 @@ def fetch_ops():
 def insertar_evento(data: dict):
     """
     Inserta en la tabla 'eventos' incluyendo 'op' y 'cantidad'.
-    - En Producción:
-        tipo='produccion', componente=ItemName, op=OP, cantidad=valor,
-        start/end/minutos=None, submotivo=None
     """
     conn = get_connection()
     try:
@@ -84,10 +81,10 @@ def insertar_evento(data: dict):
             data.get("start") if data.get("start") else None,
             data.get("end") if data.get("end") else None,
             data.get("minutos"),
-            data.get("cantidad"),     # <<--- cantidad va en su columna
+            data.get("cantidad"),
             data.get("comentario"),
             data.get("user"),
-            data.get("op"),           # <<--- OP en su columna
+            data.get("op"),
         )
         cur.execute(sql, valores)
         conn.commit()
@@ -100,13 +97,14 @@ def insertar_evento(data: dict):
 
 @st.cache_data(show_spinner=False)
 def fetch_distinct_campos():
-    """Opciones para filtros (línea, usuario, motivo, componente, tipo)."""
+    """Opciones para filtros (línea, usuario, motivo, componente, tipo, op)."""
     conn = get_connection()
     try:
         dfs = {}
-        for campo in ["linea", "usuario", "motivo", "componente", "tipo"]:
+        for campo in ["linea", "usuario", "motivo", "componente", "tipo", "op"]:
             q = f"SELECT DISTINCT {campo} AS val FROM eventos WHERE {campo} IS NOT NULL AND {campo}<>'' ORDER BY 1;"
-            dfs[campo] = pd.read_sql(q, conn)["val"].tolist()
+            df = pd.read_sql(q, conn)
+            dfs[campo] = df["val"].tolist()
         return dfs
     finally:
         conn.close()
@@ -114,10 +112,13 @@ def fetch_distinct_campos():
 @st.cache_data(show_spinner=False)
 def fetch_eventos(fecha_desde=None, fecha_hasta=None,
                   lineas=None, tipos=None, usuarios=None,
-                  motivos=None, componentes=None, limit=5000):
+                  motivos=None, componentes=None, ops=None,
+                  cantidad_min=None, cantidad_max=None,
+                  limit=5000):
     """
     Devuelve un DataFrame con eventos filtrados.
     Las fechas filtran por fecha_registro (timestamp de inserción).
+    Permite filtrar por OP y por cantidad (mín/máx).
     """
     conn = get_connection()
     try:
@@ -148,6 +149,14 @@ def fetch_eventos(fecha_desde=None, fecha_hasta=None,
         add_in("usuario", usuarios, "usuario")
         add_in("motivo", motivos, "motivo")
         add_in("comp", componentes, "componente")
+        add_in("ops", ops, "op")
+
+        if cantidad_min is not None:
+            base += " AND cantidad >= %(cmin)s"
+            params["cmin"] = cantidad_min
+        if cantidad_max is not None:
+            base += " AND cantidad <= %(cmax)s"
+            params["cmax"] = cantidad_max
 
         base += " ORDER BY fecha_registro DESC"
         if limit:
@@ -259,10 +268,11 @@ elif st.session_state.page == "produccion":
         st.error(f"No se pudieron cargar las OP desde MySQL: {e}")
         ops, df_ops = [], pd.DataFrame(columns=["OP","ItemName"])
 
+    # Mostrar "OP - ItemName" en el dropdown para que sea más claro
     label_map = {op: f"{op} - {df_ops.loc[df_ops['OP']==op, 'ItemName'].iloc[0]}" for op in ops} if not df_ops.empty else {}
     op_sel = st.selectbox("OP", [""] + ops, format_func=lambda x: label_map.get(x, x))
 
-    cant = st.number_input("Cantidad", min_value=0, step=1, value=0)
+    cant = st.number_input("Cantidad", min_value=0.0, step=1.0, value=0.0)
     obs = st.text_area("Observación", placeholder="Detalle, lote, etc.", height=100)
 
     c_sp, c_btn = st.columns([3, 1])
@@ -272,6 +282,7 @@ elif st.session_state.page == "produccion":
                 st.error("Elegí una OP para continuar.")
                 st.stop()
 
+            # Buscar ItemName correspondiente a la OP seleccionada
             itemname = None
             if not df_ops.empty:
                 row = df_ops[df_ops["OP"] == op_sel]
@@ -289,7 +300,7 @@ elif st.session_state.page == "produccion":
                 "start": None,
                 "end": None,
                 "minutos": None,
-                "comentario": obs,             # solo la observación
+                "comentario": obs,             # solo observación
                 "timestamp": str(datetime.datetime.now())
             })
             go_to("ticket")
@@ -451,7 +462,7 @@ elif st.session_state.page == "dashboard":
         opts = fetch_distinct_campos()
     except Exception as e:
         st.error(f"No se pudieron cargar opciones de filtros: {e}")
-        opts = {"linea": [], "usuario": [], "motivo": [], "componente": [], "tipo": []}
+        opts = {"linea": [], "usuario": [], "motivo": [], "componente": [], "tipo": [], "op": []}
 
     colf1, colf2, colf3 = st.columns(3)
     with colf1:
@@ -465,14 +476,31 @@ elif st.session_state.page == "dashboard":
     with cold1:
         lineas = st.multiselect("Líneas", opts.get("linea", []))
         tipos = st.multiselect("Tipos", opts.get("tipo", []))
+        ops_sel = st.multiselect("OP", opts.get("op", []))  # NUEVO filtro OP
     with cold2:
         usuarios = st.multiselect("Usuarios", opts.get("usuario", []))
         motivos = st.multiselect("Motivos", opts.get("motivo", []))
+        cantidad_min_str = st.text_input("Cantidad mínima", value="")  # NUEVO
     with cold3:
         componentes = st.multiselect("Componentes", opts.get("componente", []))
+        cantidad_max_str = st.text_input("Cantidad máxima", value="")  # NUEVO
 
     if st.button("Actualizar", use_container_width=True):
         st.cache_data.clear()  # por si hubo nuevas inserciones
+
+    # Parseo seguro de cantidades (vacío -> None)
+    def _to_number_or_none(s):
+        s = (s or "").strip().replace(",", ".")
+        if s == "":
+            return None
+        try:
+            return float(s)
+        except Exception:
+            st.warning("Cantidad mínima/máxima inválida: usá números (ej: 100 o 100.5).")
+            return None
+
+    cantidad_min = _to_number_or_none(cantidad_min_str)
+    cantidad_max = _to_number_or_none(cantidad_max_str)
 
     # Cargar datos
     try:
@@ -484,6 +512,9 @@ elif st.session_state.page == "dashboard":
             usuarios=usuarios or None,
             motivos=motivos or None,
             componentes=componentes or None,
+            ops=ops_sel or None,
+            cantidad_min=cantidad_min,
+            cantidad_max=cantidad_max,
             limit=limit,
         )
     except Exception as e:
@@ -542,9 +573,8 @@ elif st.session_state.page == "dashboard":
         st.info("No hay datos para los filtros actuales.")
     else:
         cols_order = ["id", "fecha_registro", "linea", "usuario", "tipo", "op",
-                      "cantidad", "motivo", "submotivo", "componente",
-                      "hora_inicio", "hora_fin", "minutos",
-                      "comentario", "registrado_por"]
+                      "cantidad", "motivo", "submotivo", "componente", "hora_inicio",
+                      "hora_fin", "minutos", "comentario", "registrado_por"]
         cols_order = [c for c in cols_order if c in df.columns]
         df = df[cols_order]
         st.dataframe(df, use_container_width=True, height=420)
