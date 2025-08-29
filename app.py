@@ -484,8 +484,8 @@ elif st.session_state.page == "dashboard":
         with colf3:
             limit_i = st.number_input("Límite de filas", 100, 100000, 5000, step=100, key="i_limit")
 
-        # Tipos disponibles para interrupciones (excluimos 'produccion' si está)
-        tipos_posibles = [t for t in opts.get("tipo", []) if str(t).lower() != "produccion"]
+        # Tipos para interrupciones (excluir producción)
+        tipos_posibles = [t for t in opts.get("tipo", []) if str(t).lower() != "produccion" and not str(t).lower().startswith("producci")]
 
         cold1, cold2, cold3 = st.columns(3)
         with cold1:
@@ -523,8 +523,8 @@ elif st.session_state.page == "dashboard":
         c_k1, c_k2, c_k3, c_k4 = st.columns(4)
         total_eventos = int(dfi.shape[0]) if not dfi.empty else 0
         total_minutos = int(dfi["minutos"].fillna(0).sum()) if not dfi.empty and "minutos" in dfi else 0
-        interrupciones = int((dfi["tipo"] == "interrupcion").sum()) if not dfi.empty and "tipo" in dfi else 0
-        novedades = int((dfi["tipo"] == "novedad").sum()) if not dfi.empty and "tipo" in dfi else 0
+        interrupciones = int((dfi["tipo"].astype(str).str.lower() == "interrupcion").sum()) if not dfi.empty and "tipo" in dfi else 0
+        novedades = int((dfi["tipo"].astype(str).str.lower() == "novedad").sum()) if not dfi.empty and "tipo" in dfi else 0
 
         with c_k1:
             st.markdown('<div class="kpi-card"><div class="kpi-title">Total eventos</div>'
@@ -546,7 +546,7 @@ elif st.session_state.page == "dashboard":
         else:
             df_g = dfi.copy()
             df_g["minutos"] = pd.to_numeric(df_g["minutos"], errors="coerce").fillna(0)
-            df_pie = df_g[df_g["tipo"] == "interrupcion"].groupby("linea", as_index=False)["minutos"].sum()
+            df_pie = df_g[df_g["tipo"].astype(str).str.lower() == "interrupcion"].groupby("linea", as_index=False)["minutos"].sum()
 
             if df_pie.empty or df_pie["minutos"].sum() == 0:
                 st.info("No hay minutos de interrupción para graficar con los filtros actuales.")
@@ -625,13 +625,13 @@ elif st.session_state.page == "dashboard":
         cmin = _to_number_or_none(cantidad_min_str)
         cmax = _to_number_or_none(cantidad_max_str)
 
-        # Data: SOLO tipo produccion
+        # Traemos TODO y filtramos en pandas a 'produccion'/'producción' para evitar problemas de tildes/case en la DB
         try:
             dfp = fetch_eventos(
                 fecha_desde=fecha_desde_p if isinstance(fecha_desde_p, datetime.date) else None,
                 fecha_hasta=fecha_hasta_p if isinstance(fecha_hasta_p, datetime.date) else None,
                 lineas=lineas_p or None,
-                tipos=["produccion"],        # 🔒 SOLO registros de produccion
+                tipos=None,  # ← no filtramos por tipo en SQL
                 usuarios=usuarios_p or None,
                 motivos=None,
                 componentes=componentes_p or None,
@@ -643,6 +643,10 @@ elif st.session_state.page == "dashboard":
         except Exception as e:
             st.error(f"Error consultando producción: {e}")
             dfp = pd.DataFrame()
+
+        # Filtro robusto en pandas: tipos que empiezan con "producci" (produccion/producción)
+        if not dfp.empty and "tipo" in dfp.columns:
+            dfp = dfp[dfp["tipo"].astype(str).str.lower().str.startswith("producci")]
 
         # KPIs producción
         cp1, cp2, cp3, cp4 = st.columns(4)
