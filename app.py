@@ -468,13 +468,13 @@ elif st.session_state.page == "dashboard":
     # Filtros comunes (fechas y límite)
     colf1, colf2, colf3 = st.columns(3)
     with colf1:
-        fecha_desde = st.date_input("Desde", value=None, format="DD/MM/YYYY")
+        fecha_desde = st.date_input("Desde", value=None, format="DD/MM/YYYY", key="db_fecha_desde")
     with colf2:
-        fecha_hasta = st.date_input("Hasta", value=None, format="DD/MM/YYYY")
+        fecha_hasta = st.date_input("Hasta", value=None, format="DD/MM/YYYY", key="db_fecha_hasta")
     with colf3:
-        limit = st.number_input("Límite de filas", 100, 100000, 5000, step=100)
+        limit = st.number_input("Límite de filas", 100, 100000, 5000, step=100, key="db_limit")
 
-    if st.button("🔄 Actualizar datos", use_container_width=True):
+    if st.button("🔄 Actualizar datos", use_container_width=True, key="db_refresh"):
         st.cache_data.clear()
 
     # Cargar datos base (sin filtrar por tipo)
@@ -495,13 +495,11 @@ elif st.session_state.page == "dashboard":
     # ——— helper: normalizar 'tipo' ———
     def _norm_tipo_series(s):
         s = s.astype(str).str.strip().str.lower()
-        # quitar acentos (fallback robusto)
         try:
             s = (s.str.normalize("NFKD").str.encode("ascii", "ignore").str.decode("ascii"))
         except Exception:
             for a, b in [("á","a"),("é","e"),("í","i"),("ó","o"),("ú","u"),("ü","u"),("ñ","n")]:
                 s = s.str.replace(a, b, regex=False)
-        # tratar "nan" y "none" como vacío
         s = s.replace({"nan": "", "none": ""})
         return s
 
@@ -518,14 +516,12 @@ elif st.session_state.page == "dashboard":
     op_nonempty = dfb["op"].astype(str).str.strip().ne("") if "op" in dfb else pd.Series(False, index=dfb.index)
     cant_num = pd.to_numeric(dfb["cantidad"], errors="coerce") if "cantidad" in dfb else pd.Series(0, index=dfb.index)
 
-    # Producción:
-    #  - si 'tipo' es exactamente 'produccion' (normalizado), o
-    #  - si 'tipo' está vacío o distinto de interrupción/novedad Y (hay OP o cantidad>0)
+    # Producción: tipo == 'produccion' o heurística (no interrupción/ nvo) y (OP o cantidad>0)
     is_produccion_tipo = dfb["tipo_norm"].eq("produccion")
     is_produccion_heur = (~is_interrup & ~is_novedad) & (op_nonempty | (cant_num.fillna(0) > 0))
     is_produccion = is_produccion_tipo | is_produccion_heur
 
-    # Debug: ver qué tipos llegaron
+    # Debug opcional
     st.caption("Tipos detectados (normalizados): " + ", ".join(sorted(dfb["tipo_norm"].fillna("").unique().tolist())))
 
     tab_int, tab_prod = st.tabs(["⛔ Interrupciones", "🏭 Producción"])
@@ -534,16 +530,31 @@ elif st.session_state.page == "dashboard":
     with tab_int:
         dfi = dfb[is_interrup].copy()
 
-        # Filtros propios
+        # Filtros propios (con keys únicos)
         cold1, cold2, cold3 = st.columns(3)
         with cold1:
-            lineas_i = st.multiselect("Líneas", sorted(dfi["linea"].dropna().unique().tolist()) if "linea" in dfi else [])
-            tipos_i  = st.multiselect("Tipos",  sorted(dfi["tipo"].dropna().unique().tolist())  if "tipo"  in dfi else [])
+            lineas_i = st.multiselect(
+                "Líneas", sorted(dfi["linea"].dropna().unique().tolist()) if "linea" in dfi else [],
+                key="i_lineas"
+            )
+            tipos_i  = st.multiselect(
+                "Tipos",  sorted(dfi["tipo"].dropna().unique().tolist())  if "tipo"  in dfi else [],
+                key="i_tipos"
+            )
         with cold2:
-            usuarios_i = st.multiselect("Usuarios", sorted(dfi["usuario"].dropna().unique().tolist()) if "usuario" in dfi else [])
-            motivos_i  = st.multiselect("Motivos",  sorted(dfi["motivo"].dropna().unique().tolist())  if "motivo"  in dfi else [])
+            usuarios_i = st.multiselect(
+                "Usuarios", sorted(dfi["usuario"].dropna().unique().tolist()) if "usuario" in dfi else [],
+                key="i_usuarios"
+            )
+            motivos_i  = st.multiselect(
+                "Motivos",  sorted(dfi["motivo"].dropna().unique().tolist())  if "motivo"  in dfi else [],
+                key="i_motivos"
+            )
         with cold3:
-            componentes_i = st.multiselect("Componentes", sorted(dfi["componente"].dropna().unique().tolist()) if "componente" in dfi else [])
+            componentes_i = st.multiselect(
+                "Componentes", sorted(dfi["componente"].dropna().unique().tolist()) if "componente" in dfi else [],
+                key="i_componentes"
+            )
 
         def _apply_in(df, col, vals):
             if vals and col in df.columns:
@@ -597,27 +608,39 @@ elif st.session_state.page == "dashboard":
                       "motivo", "submotivo", "componente", "hora_inicio",
                       "hora_fin", "minutos", "comentario", "registrado_por"]
             cols_i = [c for c in cols_i if c in dfi.columns]
-            st.dataframe(dfi[cols_i], use_container_width=True, height=420)
+            st.dataframe(dfi[cols_i], use_container_width=True, height=420, key="i_table")
             csv_i = dfi[cols_i].to_csv(index=False).encode("utf-8-sig")
             st.download_button("⬇️ Descargar CSV (Interrupciones)", data=csv_i,
                                file_name="interrupciones.csv", mime="text/csv",
-                               use_container_width=True)
+                               use_container_width=True, key="i_csv_btn")
 
     # ============= Pestaña: Producción (OP) =============
     with tab_prod:
         dfp = dfb[is_produccion].copy()
 
-        # Filtros propios
+        # Filtros propios (con keys únicos)
         colp1, colp2, colp3 = st.columns(3)
         with colp1:
-            lineas_p = st.multiselect("Líneas", sorted(dfp["linea"].dropna().unique().tolist()) if "linea" in dfp else [])
-            ops_p    = st.multiselect("OP",     sorted(dfp["op"].dropna().unique().tolist())     if "op"    in dfp else [])
+            lineas_p = st.multiselect(
+                "Líneas", sorted(dfp["linea"].dropna().unique().tolist()) if "linea" in dfp else [],
+                key="p_lineas"
+            )
+            ops_p = st.multiselect(
+                "OP", sorted(dfp["op"].dropna().unique().tolist()) if "op" in dfp else [],
+                key="p_ops"
+            )
         with colp2:
-            usuarios_p    = st.multiselect("Usuarios", sorted(dfp["usuario"].dropna().unique().tolist()) if "usuario" in dfp else [])
-            componentes_p = st.multiselect("Componente (ItemName)", sorted(dfp["componente"].dropna().unique().tolist()) if "componente" in dfp else [])
+            usuarios_p = st.multiselect(
+                "Usuarios", sorted(dfp["usuario"].dropna().unique().tolist()) if "usuario" in dfp else [],
+                key="p_usuarios"
+            )
+            componentes_p = st.multiselect(
+                "Componente (ItemName)", sorted(dfp["componente"].dropna().unique().tolist()) if "componente" in dfp else [],
+                key="p_componentes"
+            )
         with colp3:
-            cmin_str = st.text_input("Cantidad mínima", value="")
-            cmax_str = st.text_input("Cantidad máxima", value="")
+            cmin_str = st.text_input("Cantidad mínima", value="", key="p_cmin")
+            cmax_str = st.text_input("Cantidad máxima", value="", key="p_cmax")
 
         def _apply_in(df, col, vals):
             if vals and col in df.columns:
@@ -668,11 +691,11 @@ elif st.session_state.page == "dashboard":
             cols_p = ["id", "fecha_registro", "linea", "usuario", "op", "cantidad",
                       "componente", "motivo", "comentario", "registrado_por"]
             cols_p = [c for c in cols_p if c in dfp.columns]
-            st.dataframe(dfp[cols_p], use_container_width=True, height=420)
+            st.dataframe(dfp[cols_p], use_container_width=True, height=420, key="p_table")
             csv_p = dfp[cols_p].to_csv(index=False).encode("utf-8-sig")
             st.download_button("⬇️ Descargar CSV (Producción)", data=csv_p,
                                file_name="produccion.csv", mime="text/csv",
-                               use_container_width=True)
+                               use_container_width=True, key="p_csv_btn")
 
 # 12) Confirmación (overlay arriba, sin fondo gris)
 elif st.session_state.page == "confirmacion":
