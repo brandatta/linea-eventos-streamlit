@@ -5,10 +5,10 @@ import pandas as pd
 import mysql.connector
 from streamlit.components.v1 import html  # Overlay HTML full-screen
 
-# ======= Estilos compactos (menos scroll) =======
+# ================== CONFIG / UI ==================
 st.markdown("""
     <style>
-    .block-container { padding-top: 2rem; } /* un poco + bajo pero sin cortar título */
+    .block-container { padding-top: 2rem; }
     h1, h2, h3 { font-size: 1.1rem !important; margin-bottom: 0.35rem !important; }
     .stMarkdown p { margin-bottom: 0.25rem; }
     .stButton>button { padding: 0.45rem 0.8rem; }
@@ -24,7 +24,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# ======= Util: cargar logo como base64 =======
+# ================== UTIL: LOGO ==================
 @st.cache_data(show_spinner=False)
 def get_logo_b64(path="logorelleno.png"):
     try:
@@ -33,7 +33,7 @@ def get_logo_b64(path="logorelleno.png"):
     except Exception:
         return None
 
-# ======= MySQL: conexión y utils =======
+# ================== MYSQL ==================
 def get_connection():
     return mysql.connector.connect(
         host=st.secrets["app_bd"]["host"],
@@ -43,7 +43,32 @@ def get_connection():
         port=int(st.secrets["app_bd"].get("port", 3306)),
     )
 
+@st.cache_data(show_spinner=False)
+def fetch_ops():
+    """
+    Devuelve la lista de OP desde la tabla MySQL 'template_op'.
+    Columna: OP
+    """
+    conn = get_connection()
+    try:
+        q = 'SELECT DISTINCT OP FROM template_op WHERE OP IS NOT NULL AND OP<>"" ORDER BY OP;'
+        df = pd.read_sql(q, conn)
+        return df["OP"].astype(str).tolist()
+    finally:
+        conn.close()
+
 def insertar_evento(data: dict):
+    """
+    Inserta en la tabla 'eventos' con el esquema ya existente.
+    Para PRODUCCIÓN:
+      - tipo = 'produccion'
+      - motivo = 'OP: <op>'
+      - submotivo = NULL
+      - componente = NULL
+      - minutos = NULL
+      - hora_inicio/hora_fin = NULL
+      - comentario = 'Cantidad: X. Obs: ...'
+    """
     conn = get_connection()
     try:
         cur = conn.cursor()
@@ -77,7 +102,7 @@ def insertar_evento(data: dict):
 
 @st.cache_data(show_spinner=False)
 def fetch_distinct_campos():
-    """Trae opciones para filtros (línea, usuario, motivo, componente, tipo)."""
+    """Opciones para filtros (línea, usuario, motivo, componente, tipo)."""
     conn = get_connection()
     try:
         dfs = {}
@@ -109,7 +134,6 @@ def fetch_eventos(fecha_desde=None, fecha_hasta=None,
             base += " AND fecha_registro >= %(fdesde)s"
             params["fdesde"] = datetime.datetime.combine(fecha_desde, datetime.time.min)
         if fecha_hasta:
-            # incluir todo el día
             base += " AND fecha_registro < %(fhasta)s"
             params["fhasta"] = datetime.datetime.combine(fecha_hasta, datetime.time.max)
 
@@ -136,7 +160,7 @@ def fetch_eventos(fecha_desde=None, fecha_hasta=None,
     finally:
         conn.close()
 
-# ======= Inicialización de estado =======
+# ================== STATE ==================
 def init_state():
     if 'page' not in st.session_state:
         st.session_state.page = 'linea'
@@ -160,7 +184,7 @@ def reset_to_home():
 
 init_state()
 
-# ======= Handler de acciones via query params =======
+# ================== QUERY PARAM ACTIONS ==================
 params = st.query_params
 if "action" in params:
     act = params.get("action")
@@ -177,11 +201,13 @@ def go_to(page):
         clear_overlay()
     st.session_state.page = page
 
-# 👉 No mostrar título cuando estoy en la confirmación (evita solapado)
+# Título (ocultar en confirmación para no solapar)
 if st.session_state.page != "confirmacion":
     st.title("App Registro de Eventos")
 
-# ======= Página: Seleccionar Línea =======
+# ================== PANTALLAS ==================
+
+# 1) Selección de Línea
 if st.session_state.page == "linea":
     clear_overlay()
     st.header("Selecciona una línea")
@@ -197,7 +223,7 @@ if st.session_state.page == "linea":
     if st.button("📊 Ver dashboard", use_container_width=True):
         go_to("dashboard")
 
-# ======= Página: Seleccionar Usuario =======
+# 2) Selección de Usuario
 elif st.session_state.page == "user":
     clear_overlay()
     st.header("Selecciona tu usuario")
@@ -207,9 +233,62 @@ elif st.session_state.page == "user":
     with col_btn:
         if st.button("Continuar", use_container_width=True) and user:
             st.session_state.data['user'] = user
-            go_to("motivo")
+            go_to("tipo_evento")  # PASO NUEVO
 
-# ======= Página: Motivo =======
+# 3) Tipo de Registro (Producción o Interrupción)
+elif st.session_state.page == "tipo_evento":
+    clear_overlay()
+    linea_txt = st.session_state.data.get('linea', 'Línea')
+    st.header(f"Tipo de registro - {linea_txt}")
+    c1, c2 = st.columns(2)
+    if c1.button("Interrupción", use_container_width=True):
+        st.session_state.data["tipo"] = "interrupcion"
+        go_to("motivo")
+    if c2.button("Producción", use_container_width=True):
+        st.session_state.data["tipo"] = "produccion"
+        go_to("produccion")
+
+# 4) Producción (OP, cantidad, observación)
+elif st.session_state.page == "produccion":
+    clear_overlay()
+    st.header("Producción")
+
+    # Cargar OPs desde template_op
+    try:
+        ops = fetch_ops()
+    except Exception as e:
+        st.error(f"No se pudieron cargar las OP desde MySQL: {e}")
+        ops = []
+
+    op = st.selectbox("OP", [""] + ops)
+    cant = st.number_input("Cantidad", min_value=0, step=1, value=0)
+    obs = st.text_area("Observación", placeholder="Detalle, lote, etc.", height=100)
+
+    c_sp, c_btn = st.columns([3, 1])
+    with c_btn:
+        if st.button("Confirmar", use_container_width=True):
+            if not op:
+                st.error("Elegí una OP para continuar.")
+                st.stop()
+
+            # Mapear a la estructura de 'eventos'
+            st.session_state.data.update({
+                "motivo": f"OP: {op}",
+                "submotivo": None,
+                "componente": None,
+                "start": None,
+                "end": None,
+                "minutos": None,
+                "comentario": f"Cantidad: {cant}. Obs: {obs}",
+                "timestamp": str(datetime.datetime.now())
+            })
+            go_to("ticket")
+
+    st.divider()
+    if st.button("⬅️ Volver", use_container_width=True):
+        go_to("tipo_evento")
+
+# 5) Motivo (Interrupción)
 elif st.session_state.page == "motivo":
     clear_overlay()
     st.header("Selecciona un motivo")
@@ -230,7 +309,7 @@ elif st.session_state.page == "motivo":
             st.session_state.data['motivo'] = selected_motivo
             go_to("submotivo")
 
-# ======= Página: Submotivo =======
+# 6) Submotivo (Interrupción)
 elif st.session_state.page == "submotivo":
     clear_overlay()
     st.header("Selecciona un submotivo")
@@ -245,23 +324,23 @@ elif st.session_state.page == "submotivo":
         st.session_state.data['submotivo'] = "Panel"
         go_to("componente")
 
-# ======= Página: Componente =======
+# 7) Componente (Interrupción)
 elif st.session_state.page == "componente":
     clear_overlay()
     st.header("Selecciona un componente")
     c1, c2, c3 = st.columns(3)
     if c1.button("PLC", use_container_width=True):
         st.session_state.data['componente'] = "PLC"
-        go_to("tipo")
+        go_to("tipo_interrupcion")
     if c2.button("Tornillo", use_container_width=True):
         st.session_state.data['componente'] = "Tornillo"
-        go_to("tipo")
+        go_to("tipo_interrupcion")
     if c3.button("Interruptor", use_container_width=True):
         st.session_state.data['componente'] = "Interruptor"
-        go_to("tipo")
+        go_to("tipo_interrupcion")
 
-# ======= Página: Tipo de Evento =======
-elif st.session_state.page == "tipo":
+# 8) Tipo de evento (Interrupción vs Novedad dentro de interrupción original)
+elif st.session_state.page == "tipo_interrupcion":
     clear_overlay()
     linea_txt = st.session_state.data.get('linea', 'Línea')
     st.header(f"Selecciona una opción para {linea_txt}")
@@ -273,7 +352,7 @@ elif st.session_state.page == "tipo":
         st.session_state.data["tipo"] = "novedad"
         go_to("form")
 
-# ======= Página: Formulario =======
+# 9) Formulario (Interrupción / Novedad)
 elif st.session_state.page == "form":
     clear_overlay()
     tipo = st.session_state.data.get("tipo", "interrupcion")
@@ -319,7 +398,7 @@ elif st.session_state.page == "form":
             })
             go_to("ticket")
 
-# ======= Página: Ticket (grilla compacta) =======
+# 10) Ticket (grilla compacta para ambos tipos)
 elif st.session_state.page == "ticket":
     clear_overlay()
     data = st.session_state.data
@@ -350,7 +429,7 @@ elif st.session_state.page == "ticket":
         if st.button("Cancelar", use_container_width=True):
             reset_to_home()
 
-# ======= Página: Dashboard (listar y filtrar eventos) =======
+# 11) Dashboard (listar y filtrar eventos)
 elif st.session_state.page == "dashboard":
     clear_overlay()
     st.header("📊 Dashboard de eventos")
@@ -474,7 +553,7 @@ elif st.session_state.page == "dashboard":
         if st.button("⬅️ Volver al inicio", use_container_width=True):
             go_to("linea")
 
-# ======= Página: Confirmación (modal sin fondo gris, arriba) =======
+# 12) Confirmación (overlay arriba, sin fondo gris)
 elif st.session_state.page == "confirmacion":
     d = st.session_state.data
     logo_b64 = get_logo_b64("logorelleno.png")
@@ -496,9 +575,9 @@ elif st.session_state.page == "confirmacion":
           background: transparent;
           z-index: 9999;
           display: flex;
-          justify-content: center;   /* centrar horizontal */
-          align-items: flex-start;   /* alinear arriba */
-          padding-top: 1.5vh;        /* bien arriba */
+          justify-content: center;
+          align-items: flex-start;
+          padding-top: 1.5vh;
         }}
         .mp-card {{
           width: 540px;
@@ -513,7 +592,7 @@ elif st.session_state.page == "confirmacion":
         }}
 
         .mp-logo {{
-          width: 45px;                   /* logo más chico */
+          width: 45px;
           margin: 0 auto 12px auto;
           display: block;
           animation: logoIn 1000ms ease-out both,
@@ -570,11 +649,13 @@ elif st.session_state.page == "confirmacion":
           <div class="mp-summary">
             <div class="mp-kv"><div class="k">Fecha y hora</div><div class="v">{d.get('timestamp','-')}</div></div>
             <div class="mp-kv"><div class="k">Línea</div><div class="v">{d.get('linea','-')}</div></div>
+            <div class="mp-kv"><div class="k">Tipo</div><div class="v">{d.get('tipo','-')}</div></div>
             <div class="mp-kv"><div class="k">Motivo</div><div class="v">{d.get('motivo','-')}</div></div>
             <div class="mp-kv"><div class="k">Submotivo</div><div class="v">{d.get('submotivo','-')}</div></div>
             <div class="mp-kv"><div class="k">Componente</div><div class="v">{d.get('componente','-')}</div></div>
             <div class="mp-kv"><div class="k">Minutos</div><div class="v">{d.get('minutos','-')}</div></div>
             <div class="mp-kv"><div class="k">Usuario</div><div class="v">{d.get('user','-')}</div></div>
+            <div class="mp-kv"><div class="k">Comentario</div><div class="v">{d.get('comentario','-')}</div></div>
           </div>
           <div class="mp-actions">
             <a class="btn" href="?action=ticket">Ver detalle</a>
