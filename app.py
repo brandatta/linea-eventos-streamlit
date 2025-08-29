@@ -238,7 +238,7 @@ if st.session_state.page == "linea":
         go_to("user")
 
     st.divider()
-    if st.button("📊 Indicadores", use_container_width=True):
+    if st.button("📊 Indicadores de Eventos", use_container_width=True):
         go_to("dashboard")
 
 # 2) Selección de Usuario
@@ -476,7 +476,7 @@ elif st.session_state.page == "ticket":
 # 11) Dashboard (listar y filtrar eventos en pestañas)
 elif st.session_state.page == "dashboard":
     clear_overlay()
-    st.header("📊 Dashboard de eventos")
+    st.header("📊 Indicadores de Eventos")
 
     # Filtros comunes (fechas y límite)
     colf1, colf2, colf3 = st.columns(3)
