@@ -238,7 +238,7 @@ if st.session_state.page == "linea":
         go_to("user")
 
     st.divider()
-    if st.button("📊 Ver dashboard", use_container_width=True):
+    if st.button("📊 Indicadores", use_container_width=True):
         go_to("dashboard")
 
 # 2) Selección de Usuario
