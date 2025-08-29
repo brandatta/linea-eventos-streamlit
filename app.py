@@ -460,94 +460,93 @@ elif st.session_state.page == "ticket":
         if st.button("Cancelar", use_container_width=True):
             reset_to_home()
 
-# 11) Dashboard (listar y filtrar eventos)
+# 11) Dashboard (listar y filtrar eventos en pestañas)
 elif st.session_state.page == "dashboard":
     clear_overlay()
     st.header("📊 Dashboard de eventos")
 
-    # Cargar opciones para filtros
+    # Fechas + límite (filtros comunes a ambas pestañas)
+    colf1, colf2, colf3 = st.columns(3)
+    with colf1:
+        fecha_desde = st.date_input("Desde", value=None, format="DD/MM/YYYY")
+    with colf2:
+        fecha_hasta = st.date_input("Hasta", value=None, format="DD/MM/YYYY")
+    with colf3:
+        limit = st.number_input("Límite de filas", 100, 100000, 5000, step=100)
+
+    # Cargar datos base (sin filtrar por OP ni cantidad aquí)
     try:
-        opts = fetch_distinct_campos()
+        df_base = fetch_eventos(
+            fecha_desde=fecha_desde if isinstance(fecha_desde, datetime.date) else None,
+            fecha_hasta=fecha_hasta if isinstance(fecha_hasta, datetime.date) else None,
+            limit=limit,
+        )
     except Exception as e:
-        st.error(f"No se pudieron cargar opciones de filtros: {e}")
-        opts = {"linea": [], "usuario": [], "motivo": [], "componente": [], "tipo": [], "op": []}
+        st.error(f"Error consultando la base: {e}")
+        df_base = pd.DataFrame()
 
-    tab_int, tab_ops = st.tabs(["Interrupciones", "Producción (OPs)"])
+    # Si no hay datos, mostrar aviso y salir
+    if df_base.empty:
+        st.info("No hay datos para los filtros de fecha/límite actuales.")
+        st.stop()
 
-    # --------------------------- TAB: INTERRUPCIONES ---------------------------
+    # Pestañas
+    tab_int, tab_prod = st.tabs(["⛔ Interrupciones", "🏭 Producción"])
+
+    # ====== pestaña: Interrupciones ======
     with tab_int:
-        colf1, colf2, colf3 = st.columns(3)
-        with colf1:
-            fecha_desde_i = st.date_input("Desde", value=None, format="DD/MM/YYYY", key="i_desde")
-        with colf2:
-            fecha_hasta_i = st.date_input("Hasta", value=None, format="DD/MM/YYYY", key="i_hasta")
-        with colf3:
-            limit_i = st.number_input("Límite de filas", 100, 100000, 5000, step=100, key="i_limit")
+        # Filtro por tipo interrupción (robusto)
+        dfi = df_base.copy()
+        if "tipo" in dfi.columns:
+            dfi = dfi[dfi["tipo"].astype(str).str.lower().str.contains("interrup")]
 
-        # Tipos para interrupciones (excluir producción)
-        tipos_posibles = [t for t in opts.get("tipo", []) if str(t).lower() != "produccion" and not str(t).lower().startswith("producci")]
+        # Filtros específicos de interrupciones
+        try:
+            opts = fetch_distinct_campos()
+        except Exception:
+            opts = {"linea": [], "usuario": [], "motivo": [], "componente": [], "tipo": [], "op": []}
 
         cold1, cold2, cold3 = st.columns(3)
         with cold1:
-            lineas_i = st.multiselect("Líneas", opts.get("linea", []), key="i_lineas")
-            tipos_i = st.multiselect("Tipos", tipos_posibles, default=tipos_posibles, key="i_tipos")
+            lineas_i = st.multiselect("Líneas", sorted(dfi["linea"].dropna().unique().tolist()) if "linea" in dfi else [])
+            tipos_i = st.multiselect("Tipos", sorted(dfi["tipo"].dropna().unique().tolist()) if "tipo" in dfi else [])
         with cold2:
-            usuarios_i = st.multiselect("Usuarios", opts.get("usuario", []), key="i_usuarios")
-            motivos_i = st.multiselect("Motivos", opts.get("motivo", []), key="i_motivos")
+            usuarios_i = st.multiselect("Usuarios", sorted(dfi["usuario"].dropna().unique().tolist()) if "usuario" in dfi else [])
+            motivos_i = st.multiselect("Motivos", sorted(dfi["motivo"].dropna().unique().tolist()) if "motivo" in dfi else [])
         with cold3:
-            componentes_i = st.multiselect("Componentes", opts.get("componente", []), key="i_comp")
+            componentes_i = st.multiselect("Componentes", sorted(dfi["componente"].dropna().unique().tolist()) if "componente" in dfi else [])
 
-        if st.button("Actualizar interrupciones", use_container_width=True, key="i_refresh"):
-            st.cache_data.clear()
+        # Aplicar filtros
+        def _apply_in(df, col, vals):
+            if vals and col in df.columns:
+                return df[df[col].isin(vals)]
+            return df
 
-        # Cargar datos: solo interrupciones/novedades (no producción)
-        try:
-            dfi = fetch_eventos(
-                fecha_desde=fecha_desde_i if isinstance(fecha_desde_i, datetime.date) else None,
-                fecha_hasta=fecha_hasta_i if isinstance(fecha_hasta_i, datetime.date) else None,
-                lineas=lineas_i or None,
-                tipos=tipos_i or None,
-                usuarios=usuarios_i or None,
-                motivos=motivos_i or None,
-                componentes=componentes_i or None,
-                ops=None,
-                cantidad_min=None,
-                cantidad_max=None,
-                limit=limit_i,
-            )
-        except Exception as e:
-            st.error(f"Error consultando interrupciones: {e}")
-            dfi = pd.DataFrame()
+        dfi = _apply_in(dfi, "linea", lineas_i)
+        dfi = _apply_in(dfi, "tipo", tipos_i)
+        dfi = _apply_in(dfi, "usuario", usuarios_i)
+        dfi = _apply_in(dfi, "motivo", motivos_i)
+        dfi = _apply_in(dfi, "componente", componentes_i)
 
-        # KPIs
-        c_k1, c_k2, c_k3, c_k4 = st.columns(4)
-        total_eventos = int(dfi.shape[0]) if not dfi.empty else 0
-        total_minutos = int(dfi["minutos"].fillna(0).sum()) if not dfi.empty and "minutos" in dfi else 0
-        interrupciones = int((dfi["tipo"].astype(str).str.lower() == "interrupcion").sum()) if not dfi.empty and "tipo" in dfi else 0
-        novedades = int((dfi["tipo"].astype(str).str.lower() == "novedad").sum()) if not dfi.empty and "tipo" in dfi else 0
-
+        # KPIs interrupciones
+        total_eventos_i = int(dfi.shape[0])
+        total_minutos_i = int(pd.to_numeric(dfi.get("minutos", pd.Series(dtype=float)), errors="coerce").fillna(0).sum())
+        c_k1, c_k2 = st.columns(2)
         with c_k1:
-            st.markdown('<div class="kpi-card"><div class="kpi-title">Total eventos</div>'
-                        f'<div class="kpi-value">{total_eventos}</div></div>', unsafe_allow_html=True)
+            st.markdown('<div class="kpi-card"><div class="kpi-title">Interrupciones</div>'
+                        f'<div class="kpi-value">{total_eventos_i}</div></div>', unsafe_allow_html=True)
         with c_k2:
             st.markdown('<div class="kpi-card"><div class="kpi-title">Minutos (suma)</div>'
-                        f'<div class="kpi-value">{total_minutos}</div></div>', unsafe_allow_html=True)
-        with c_k3:
-            st.markdown('<div class="kpi-card"><div class="kpi-title">Interrupciones</div>'
-                        f'<div class="kpi-value">{interrupciones}</div></div>', unsafe_allow_html=True)
-        with c_k4:
-            st.markdown('<div class="kpi-card"><div class="kpi-title">Novedades</div>'
-                        f'<div class="kpi-value">{novedades}</div></div>', unsafe_allow_html=True)
+                        f'<div class="kpi-value">{total_minutos_i}</div></div>', unsafe_allow_html=True)
 
-        # —— Pie: minutos de paro por línea (solo interrupciones) ——
+        # Pie: minutos por línea
         st.subheader("Minutos de paro por línea")
         if dfi.empty:
             st.info("No hay datos para graficar con los filtros actuales.")
         else:
-            df_g = dfi.copy()
-            df_g["minutos"] = pd.to_numeric(df_g["minutos"], errors="coerce").fillna(0)
-            df_pie = df_g[df_g["tipo"].astype(str).str.lower() == "interrupcion"].groupby("linea", as_index=False)["minutos"].sum()
-
+            dfi_g = dfi.copy()
+            dfi_g["minutos"] = pd.to_numeric(dfi_g["minutos"], errors="coerce").fillna(0)
+            df_pie = dfi_g.groupby("linea", as_index=False)["minutos"].sum()
             if df_pie.empty or df_pie["minutos"].sum() == 0:
                 st.info("No hay minutos de interrupción para graficar con los filtros actuales.")
             else:
@@ -561,7 +560,6 @@ elif st.session_state.page == "dashboard":
                 )
                 fig.update_traces(textposition="inside", texttemplate="%{label}<br>%{percent:.1%} (%{value}m)")
                 fig.update_layout(margin=dict(l=0, r=0, t=40, b=0), height=300, width=300)
-
                 c_left, c_mid, c_right = st.columns([1, 1, 1])
                 with c_mid:
                     st.plotly_chart(fig, use_container_width=False)
@@ -569,122 +567,92 @@ elif st.session_state.page == "dashboard":
         # Tabla interrupciones
         st.subheader("Tabla de interrupciones")
         if dfi.empty:
-            st.info("No hay datos para los filtros actuales.")
+            st.info("No hay interrupciones para los filtros actuales.")
         else:
-            cols_order_i = ["id", "fecha_registro", "linea", "usuario", "tipo",
-                            "motivo", "submotivo", "componente", "hora_inicio",
-                            "hora_fin", "minutos", "comentario", "registrado_por"]
-            cols_order_i = [c for c in cols_order_i if c in dfi.columns]
-            st.dataframe(dfi[cols_order_i], use_container_width=True, height=420)
+            cols_i = ["id", "fecha_registro", "linea", "usuario", "tipo",
+                      "motivo", "submotivo", "componente", "hora_inicio",
+                      "hora_fin", "minutos", "comentario", "registrado_por"]
+            cols_i = [c for c in cols_i if c in dfi.columns]
+            st.dataframe(dfi[cols_i], use_container_width=True, height=420)
+            csv_i = dfi[cols_i].to_csv(index=False).encode("utf-8-sig")
+            st.download_button("⬇️ Descargar CSV (Interrupciones)", data=csv_i,
+                               file_name="interrupciones.csv", mime="text/csv",
+                               use_container_width=True)
 
-            csv_i = dfi[cols_order_i].to_csv(index=False).encode("utf-8-sig")
-            st.download_button(
-                "⬇️ Descargar CSV (Interrupciones)",
-                data=csv_i,
-                file_name="interrupciones.csv",
-                mime="text/csv",
-                use_container_width=True
-            )
+    # ====== pestaña: Producción (OP) ======
+    with tab_prod:
+        # Filtro por tipo producción (robusto, incluye "Producción" con tilde)
+        dfp = df_base.copy()
+        if "tipo" in dfp.columns:
+            dfp = dfp[dfp["tipo"].astype(str).str.lower().str.contains("producci")]
 
-        st.divider()
+        # Filtros específicos de producción
+        colp1, colp2, colp3 = st.columns(3)
+        with colp1:
+            lineas_p = st.multiselect("Líneas", sorted(dfp["linea"].dropna().unique().tolist()) if "linea" in dfp else [])
+            ops_sel = st.multiselect("OP", sorted(dfp["op"].dropna().unique().tolist()) if "op" in dfp else [])
+        with colp2:
+            usuarios_p = st.multiselect("Usuarios", sorted(dfp["usuario"].dropna().unique().tolist()) if "usuario" in dfp else [])
+            componentes_p = st.multiselect("Componente (ItemName)", sorted(dfp["componente"].dropna().unique().tolist()) if "componente" in dfp else [])
+        with colp3:
+            cmin_str = st.text_input("Cantidad mínima", value="")
+            cmax_str = st.text_input("Cantidad máxima", value="")
 
-    # --------------------------- TAB: PRODUCCIÓN (solo registros de produccion) ---------------------------
-    with tab_ops:
-        colf1, colf2, colf3 = st.columns(3)
-        with colf1:
-            fecha_desde_p = st.date_input("Desde", value=None, format="DD/MM/YYYY", key="p_desde")
-        with colf2:
-            fecha_hasta_p = st.date_input("Hasta", value=None, format="DD/MM/YYYY", key="p_hasta")
-        with colf3:
-            limit_p = st.number_input("Límite de filas", 100, 100000, 5000, step=100, key="p_limit")
-
-        c1, c2, c3 = st.columns(3)
-        with c1:
-            lineas_p = st.multiselect("Líneas", opts.get("linea", []), key="p_lineas")
-            ops_sel_p = st.multiselect("OP", opts.get("op", []), key="p_ops")
-        with c2:
-            usuarios_p = st.multiselect("Usuarios", opts.get("usuario", []), key="p_usuarios")
-            cantidad_min_str = st.text_input("Cantidad mínima", value="", key="p_cmin")
-        with c3:
-            componentes_p = st.multiselect("Componentes (ItemName)", opts.get("componente", []), key="p_comp")
-            cantidad_max_str = st.text_input("Cantidad máxima", value="", key="p_cmax")
-
-        if st.button("Actualizar OPs", use_container_width=True, key="p_refresh"):
-            st.cache_data.clear()
-
-        def _to_number_or_none(s):
+        # Parse cantidad
+        def _num_or_none(s):
             s = (s or "").strip().replace(",", ".")
-            if s == "":
+            if not s:
                 return None
             try:
                 return float(s)
             except Exception:
-                st.warning("Cantidad mínima/máxima inválida: usá números (ej: 100 o 100.5).")
                 return None
 
-        cmin = _to_number_or_none(cantidad_min_str)
-        cmax = _to_number_or_none(cantidad_max_str)
+        cmin = _num_or_none(cmin_str)
+        cmax = _num_or_none(cmax_str)
+        if (cmin_str and cmin is None) or (cmax_str and cmax is None):
+            st.warning("Cantidad mínima/máxima inválida. Usá números (ej: 100 o 100.5).")
 
-        # Traemos TODO y filtramos en pandas a 'produccion'/'producción' para evitar problemas de tildes/case en la DB
-        try:
-            dfp = fetch_eventos(
-                fecha_desde=fecha_desde_p if isinstance(fecha_desde_p, datetime.date) else None,
-                fecha_hasta=fecha_hasta_p if isinstance(fecha_hasta_p, datetime.date) else None,
-                lineas=lineas_p or None,
-                tipos=None,  # ← no filtramos por tipo en SQL
-                usuarios=usuarios_p or None,
-                motivos=None,
-                componentes=componentes_p or None,
-                ops=ops_sel_p or None,
-                cantidad_min=cmin,
-                cantidad_max=cmax,
-                limit=limit_p,
-            )
-        except Exception as e:
-            st.error(f"Error consultando producción: {e}")
-            dfp = pd.DataFrame()
+        # Aplicar filtros producción
+        dfp = _apply_in(dfp, "linea", lineas_p)
+        dfp = _apply_in(dfp, "usuario", usuarios_p)
+        dfp = _apply_in(dfp, "componente", componentes_p)
+        dfp = _apply_in(dfp, "op", ops_sel)
 
-        # Filtro robusto en pandas: tipos que empiezan con "producci" (produccion/producción)
-        if not dfp.empty and "tipo" in dfp.columns:
-            dfp = dfp[dfp["tipo"].astype(str).str.lower().str.startswith("producci")]
+        if cmin is not None and "cantidad" in dfp.columns:
+            dfp = dfp[pd.to_numeric(dfp["cantidad"], errors="coerce") >= cmin]
+        if cmax is not None and "cantidad" in dfp.columns:
+            dfp = dfp[pd.to_numeric(dfp["cantidad"], errors="coerce") <= cmax]
 
         # KPIs producción
-        cp1, cp2, cp3, cp4 = st.columns(4)
-        total_p = int(dfp.shape[0]) if not dfp.empty else 0
-        suma_cant = float(pd.to_numeric(dfp.get("cantidad", pd.Series(dtype=float)), errors="coerce").fillna(0).sum()) if not dfp.empty else 0
-        ops_unicas = dfp["op"].nunique() if not dfp.empty and "op" in dfp else 0
-        items_unicos = dfp["componente"].nunique() if not dfp.empty and "componente" in dfp else 0
-
-        with cp1:
-            st.markdown(f'<div class="kpi-card"><div class="kpi-title">Registros producción</div><div class="kpi-value">{total_p}</div></div>', unsafe_allow_html=True)
-        with cp2:
-            st.markdown(f'<div class="kpi-card"><div class="kpi-title">Cantidad total</div><div class="kpi-value">{suma_cant:g}</div></div>', unsafe_allow_html=True)
-        with cp3:
-            st.markdown(f'<div class="kpi-card"><div class="kpi-title">OPs únicas</div><div class="kpi-value">{ops_unicas}</div></div>', unsafe_allow_html=True)
-        with cp4:
-            st.markdown(f'<div class="kpi-card"><div class="kpi-title">Items únicos</div><div class="kpi-value">{items_unicos}</div></div>', unsafe_allow_html=True)
+        total_ops = int(dfp.shape[0])
+        total_cantidad = float(pd.to_numeric(dfp.get("cantidad", pd.Series(dtype=float)), errors="coerce").fillna(0).sum())
+        pk1, pk2 = st.columns(2)
+        with pk1:
+            st.markdown('<div class="kpi-card"><div class="kpi-title">Registros de Producción</div>'
+                        f'<div class="kpi-value">{total_ops}</div></div>', unsafe_allow_html=True)
+        with pk2:
+            st.markdown('<div class="kpi-card"><div class="kpi-title">Cantidad total</div>'
+                        f'<div class="kpi-value">{total_cantidad:.2f}</div></div>', unsafe_allow_html=True)
 
         # Tabla producción
-        st.subheader("Tabla de producción (OPs)")
+        st.subheader("Tabla de producción (OP)")
         if dfp.empty:
-            st.info("No hay datos de producción con los filtros actuales.")
+            st.info("No hay registros de Producción para los filtros actuales.")
         else:
-            cols_p = ["id", "fecha_registro", "linea", "usuario", "op",
-                      "cantidad", "componente", "comentario", "registrado_por"]
+            cols_p = ["id", "fecha_registro", "linea", "usuario", "tipo", "op",
+                      "cantidad", "componente", "motivo", "comentario", "registrado_por"]
             cols_p = [c for c in cols_p if c in dfp.columns]
             st.dataframe(dfp[cols_p], use_container_width=True, height=420)
-
             csv_p = dfp[cols_p].to_csv(index=False).encode("utf-8-sig")
             st.download_button("⬇️ Descargar CSV (Producción)", data=csv_p,
                                file_name="produccion.csv", mime="text/csv",
                                use_container_width=True)
 
-        st.divider()
-
-    # Botón volver (común a Dashboard)
+    st.divider()
     col_bk1, col_bk2 = st.columns(2)
     with col_bk1:
-        if st.button("⬅️ Volver al inicio", use_container_width=True, key="dash_back"):
+        if st.button("⬅️ Volver al inicio", use_container_width=True):
             go_to("linea")
 
 # 12) Confirmación (overlay arriba, sin fondo gris)
