@@ -4,6 +4,17 @@ import base64
 import pandas as pd
 import mysql.connector
 from streamlit.components.v1 import html  # Overlay HTML full-screen
+import re  # para limpiar OPs
+
+# ================== HELPERS ==================
+def clean_op_str(val) -> str:
+    """
+    Devuelve la OP sin el sufijo .0 si vino como float-string (e.g. '1234.0' -> '1234').
+    Mantiene ceros a la izquierda si existieran: '00123.0' -> '00123'.
+    """
+    s = str(val).strip()
+    m = re.fullmatch(r'(\d+)\.0+', s)
+    return m.group(1) if m else s
 
 # ================== CONFIG / UI ==================
 st.markdown("""
@@ -52,7 +63,7 @@ def fetch_ops():
     try:
         q = 'SELECT DISTINCT OP, ItemName FROM template_op WHERE OP IS NOT NULL AND OP<>"" ORDER BY OP;'
         df = pd.read_sql(q, conn)
-        df["OP"] = df["OP"].astype(str)
+        df["OP"] = df["OP"].astype(str).map(clean_op_str)  # limpiar OP
         df["ItemName"] = df["ItemName"].astype(str)
         return df
     finally:
@@ -297,18 +308,20 @@ elif st.session_state.page == "produccion":
                 if not row.empty:
                     itemname = row["ItemName"].iloc[0]
 
+            op_sel_clean = clean_op_str(op_sel)
+
             # Guardamos en el estado, para insertar luego
             st.session_state.data.update({
                 "tipo": "produccion",
-                "op": op_sel,                  # OP en su columna
-                "cantidad": cant,              # cantidad en su columna
-                "componente": itemname,        # ItemName -> componente
-                "motivo": f"OP: {op_sel}",
+                "op": op_sel_clean,           # OP limpia
+                "cantidad": cant,
+                "componente": itemname,
+                "motivo": f"OP: {op_sel_clean}",
                 "submotivo": None,
                 "start": None,
                 "end": None,
                 "minutos": None,
-                "comentario": obs,             # solo observación
+                "comentario": obs,
                 "timestamp": str(datetime.datetime.now())
             })
             go_to("ticket")
@@ -508,6 +521,10 @@ elif st.session_state.page == "dashboard":
         dfb["tipo_norm"] = _norm_tipo_series(dfb["tipo"])
     else:
         dfb["tipo_norm"] = ""
+
+    # limpiar OP en dashboard
+    if "op" in dfb.columns:
+        dfb["op"] = dfb["op"].astype(str).map(clean_op_str)
 
     # máscaras
     is_interrup = dfb["tipo_norm"].str.contains("interrup", na=False)
