@@ -273,7 +273,7 @@ elif st.session_state.page == "produccion":
     op_sel = st.selectbox("OP", [""] + ops, format_func=lambda x: label_map.get(x, x))
 
     # 👉 Cantidad como texto (el usuario escribe el número)
-    cant_str = st.text_input("Cantidad", placeholder="Ej: 1200")
+    cant_str = st.text_input("Cantidad", placeholder="Ej: 2")
     obs = st.text_area("Observación", placeholder="Detalle, lote, etc.", height=100)
 
     c_sp, c_btn = st.columns([3, 1])
