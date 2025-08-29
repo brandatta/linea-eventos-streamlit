@@ -474,7 +474,7 @@ elif st.session_state.page == "dashboard":
     with colf3:
         limit = st.number_input("Límite de filas", 100, 100000, 5000, step=100)
 
-    # Cargar datos base (sin filtrar por OP ni cantidad aquí)
+    # Cargar datos base (sin filtros de dimensión todavía)
     try:
         df_base = fetch_eventos(
             fecha_desde=fecha_desde if isinstance(fecha_desde, datetime.date) else None,
@@ -485,38 +485,54 @@ elif st.session_state.page == "dashboard":
         st.error(f"Error consultando la base: {e}")
         df_base = pd.DataFrame()
 
-    # Si no hay datos, mostrar aviso y salir
     if df_base.empty:
         st.info("No hay datos para los filtros de fecha/límite actuales.")
         st.stop()
 
-    # Pestañas
+    # ===== Helper de normalización para 'tipo' =====
+    def _norm_tipo(series):
+        # Convierte a str, baja a minúsculas, quita acentos y espacios
+        s = series.astype(str).str.strip().str.lower()
+        # Quitar acentos de forma segura (sin libs extra)
+        try:
+            s = (s.str.normalize("NFKD")
+                   .str.encode("ascii", "ignore")
+                   .str.decode("ascii"))
+        except Exception:
+            # Si el pandas de tu runtime no soporta normalize(), fallback simple
+            repl = (("á","a"),("é","e"),("í","i"),("ó","o"),("ú","u"),("ü","u"),("ñ","n"))
+            for a,b in repl:
+                s = s.str.replace(a,b,regex=False)
+        return s
+
+    # Muestra rápida de tipos detectados para debug
+    if "tipo" in df_base.columns:
+        tipos_detectados = sorted(_norm_tipo(df_base["tipo"]).dropna().unique().tolist())
+        st.caption(f"Tipos detectados (normalizados): {', '.join(tipos_detectados) if tipos_detectados else '—'}")
+    else:
+        st.caption("La columna 'tipo' no está en el dataset.")
+
+    # Tabs
     tab_int, tab_prod = st.tabs(["⛔ Interrupciones", "🏭 Producción"])
 
     # ====== pestaña: Interrupciones ======
     with tab_int:
-        # Filtro por tipo interrupción (robusto)
         dfi = df_base.copy()
         if "tipo" in dfi.columns:
-            dfi = dfi[dfi["tipo"].astype(str).str.lower().str.contains("interrup")]
+            tipo_norm = _norm_tipo(dfi["tipo"])
+            dfi = dfi[tipo_norm.str.contains("interrup", na=False)]
 
-        # Filtros específicos de interrupciones
-        try:
-            opts = fetch_distinct_campos()
-        except Exception:
-            opts = {"linea": [], "usuario": [], "motivo": [], "componente": [], "tipo": [], "op": []}
-
+        # Filtros específicos de interrupciones (se arman desde el propio subset)
         cold1, cold2, cold3 = st.columns(3)
         with cold1:
             lineas_i = st.multiselect("Líneas", sorted(dfi["linea"].dropna().unique().tolist()) if "linea" in dfi else [])
-            tipos_i = st.multiselect("Tipos", sorted(dfi["tipo"].dropna().unique().tolist()) if "tipo" in dfi else [])
+            tipos_i  = st.multiselect("Tipos",  sorted(dfi["tipo"].dropna().unique().tolist())  if "tipo"  in dfi else [])
         with cold2:
             usuarios_i = st.multiselect("Usuarios", sorted(dfi["usuario"].dropna().unique().tolist()) if "usuario" in dfi else [])
-            motivos_i = st.multiselect("Motivos", sorted(dfi["motivo"].dropna().unique().tolist()) if "motivo" in dfi else [])
+            motivos_i  = st.multiselect("Motivos",  sorted(dfi["motivo"].dropna().unique().tolist())  if "motivo"  in dfi else [])
         with cold3:
             componentes_i = st.multiselect("Componentes", sorted(dfi["componente"].dropna().unique().tolist()) if "componente" in dfi else [])
 
-        # Aplicar filtros
         def _apply_in(df, col, vals):
             if vals and col in df.columns:
                 return df[df[col].isin(vals)]
@@ -539,7 +555,7 @@ elif st.session_state.page == "dashboard":
             st.markdown('<div class="kpi-card"><div class="kpi-title">Minutos (suma)</div>'
                         f'<div class="kpi-value">{total_minutos_i}</div></div>', unsafe_allow_html=True)
 
-        # Pie: minutos por línea
+        # Pie
         st.subheader("Minutos de paro por línea")
         if dfi.empty:
             st.info("No hay datos para graficar con los filtros actuales.")
@@ -552,10 +568,7 @@ elif st.session_state.page == "dashboard":
             else:
                 import plotly.express as px
                 fig = px.pie(
-                    df_pie,
-                    names="linea",
-                    values="minutos",
-                    hole=0.4,
+                    df_pie, names="linea", values="minutos", hole=0.4,
                     title="Distribución de minutos de paro por línea"
                 )
                 fig.update_traces(textposition="inside", texttemplate="%{label}<br>%{percent:.1%} (%{value}m)")
@@ -581,22 +594,28 @@ elif st.session_state.page == "dashboard":
 
     # ====== pestaña: Producción (OP) ======
     with tab_prod:
-        # Filtro por tipo producción (robusto, incluye "Producción" con tilde)
         dfp = df_base.copy()
         if "tipo" in dfp.columns:
-            dfp = dfp[dfp["tipo"].astype(str).str.lower().str.contains("producci")]
+            tipo_norm_p = _norm_tipo(dfp["tipo"])
+            # match 'produccion' y 'producción' ya normalizados => 'produccion'
+            dfp = dfp[tipo_norm_p.str.contains(r"\bproduccion\b", na=False)]
 
         # Filtros específicos de producción
         colp1, colp2, colp3 = st.columns(3)
         with colp1:
             lineas_p = st.multiselect("Líneas", sorted(dfp["linea"].dropna().unique().tolist()) if "linea" in dfp else [])
-            ops_sel = st.multiselect("OP", sorted(dfp["op"].dropna().unique().tolist()) if "op" in dfp else [])
+            ops_sel  = st.multiselect("OP",     sorted(dfp["op"].dropna().unique().tolist())     if "op"     in dfp else [])
         with colp2:
-            usuarios_p = st.multiselect("Usuarios", sorted(dfp["usuario"].dropna().unique().tolist()) if "usuario" in dfp else [])
-            componentes_p = st.multiselect("Componente (ItemName)", sorted(dfp["componente"].dropna().unique().tolist()) if "componente" in dfp else [])
+            usuarios_p   = st.multiselect("Usuarios", sorted(dfp["usuario"].dropna().unique().tolist()) if "usuario" in dfp else [])
+            componentes_p= st.multiselect("Componente (ItemName)", sorted(dfp["componente"].dropna().unique().tolist()) if "componente" in dfp else [])
         with colp3:
             cmin_str = st.text_input("Cantidad mínima", value="")
             cmax_str = st.text_input("Cantidad máxima", value="")
+
+        def _apply_in(df, col, vals):
+            if vals and col in df.columns:
+                return df[df[col].isin(vals)]
+            return df
 
         # Parse cantidad
         def _num_or_none(s):
@@ -607,7 +626,6 @@ elif st.session_state.page == "dashboard":
                 return float(s)
             except Exception:
                 return None
-
         cmin = _num_or_none(cmin_str)
         cmax = _num_or_none(cmax_str)
         if (cmin_str and cmin is None) or (cmax_str and cmax is None):
@@ -638,7 +656,8 @@ elif st.session_state.page == "dashboard":
         # Tabla producción
         st.subheader("Tabla de producción (OP)")
         if dfp.empty:
-            st.info("No hay registros de Producción para los filtros actuales.")
+            st.warning("No hay registros de Producción para los filtros actuales. "
+                       "Arriba podés ver los 'tipos' detectados para validar que estén llegando como 'Producción/produccion'.")
         else:
             cols_p = ["id", "fecha_registro", "linea", "usuario", "tipo", "op",
                       "cantidad", "componente", "motivo", "comentario", "registrado_por"]
