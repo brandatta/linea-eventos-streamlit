@@ -669,14 +669,18 @@ elif st.session_state.page == "confirmacion":
         .mp-kv {{ display: flex; justify-content: space-between; gap: 8px; margin: 3px 0; }}
         .mp-kv .k {{ color: #616161; }} .mp-kv .v {{ font-weight: 600; text-align: right; }}
 
+        /* Una sola acción centrada */
         .mp-actions {{
-          display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 8px;
+          display: flex;
+          justify-content: center;
+          margin-top: 8px;
         }}
         .btn {{
           display: inline-block; text-decoration: none; text-align: center;
           border-radius: 10px; padding: 8px 12px;
           border: 1px solid rgba(0,0,0,0.08);
           background: #fff; color: #111; font-size: 0.9rem;
+          min-width: 160px;
         }}
         .btn-primary {{ background: #2E7D32; color: #fff; border: none; }}
         .mp-muted {{ color: #666; font-size: 0.85rem; margin-top: 8px; }}
@@ -701,7 +705,6 @@ elif st.session_state.page == "confirmacion":
             <div class="mp-kv"><div class="k">Comentario</div><div class="v">{d.get('comentario','-')}</div></div>
           </div>
           <div class="mp-actions">
-            <a class="btn" href="?action=ticket">Ver detalle</a>
             <a class="btn btn-primary" href="?action=home">Registrar otro</a>
           </div>
           <div class="mp-muted">Podés cerrar esta ventana o continuar con las opciones.</div>
