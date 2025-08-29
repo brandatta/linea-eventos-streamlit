@@ -474,11 +474,10 @@ elif st.session_state.page == "dashboard":
     with colf3:
         limit = st.number_input("Límite de filas", 100, 100000, 5000, step=100)
 
-    # Botón de refresco (limpia cache de @st.cache_data)
     if st.button("🔄 Actualizar datos", use_container_width=True):
         st.cache_data.clear()
 
-    # Cargar datos base
+    # Cargar datos base (sin filtrar por tipo)
     try:
         df_base = fetch_eventos(
             fecha_desde=fecha_desde if isinstance(fecha_desde, datetime.date) else None,
@@ -493,33 +492,49 @@ elif st.session_state.page == "dashboard":
         st.info("No hay datos para los filtros de fecha/límite actuales.")
         st.stop()
 
-    # ——— helper para normalizar 'tipo' (acentos, mayúsculas, espacios) ———
-    def _norm_tipo(s):
+    # ——— helper: normalizar 'tipo' ———
+    def _norm_tipo_series(s):
         s = s.astype(str).str.strip().str.lower()
+        # quitar acentos (fallback robusto)
         try:
             s = (s.str.normalize("NFKD").str.encode("ascii", "ignore").str.decode("ascii"))
         except Exception:
-            # fallback simple si no hay normalize
             for a, b in [("á","a"),("é","e"),("í","i"),("ó","o"),("ú","u"),("ü","u"),("ñ","n")]:
                 s = s.str.replace(a, b, regex=False)
+        # tratar "nan" y "none" como vacío
+        s = s.replace({"nan": "", "none": ""})
         return s
 
-    # Debug rápido de los tipos que llegan
-    if "tipo" in df_base.columns:
-        st.caption("Tipos detectados (normalizados): " + ", ".join(
-            sorted(_norm_tipo(df_base["tipo"]).dropna().unique().tolist())
-        ))
+    dfb = df_base.copy()
+    if "tipo" in dfb.columns:
+        dfb["tipo_norm"] = _norm_tipo_series(dfb["tipo"])
+    else:
+        dfb["tipo_norm"] = ""
+
+    # máscaras
+    is_interrup = dfb["tipo_norm"].str.contains("interrup", na=False)
+    is_novedad  = dfb["tipo_norm"].str.contains("novedad", na=False)
+
+    op_nonempty = dfb["op"].astype(str).str.strip().ne("") if "op" in dfb else pd.Series(False, index=dfb.index)
+    cant_num = pd.to_numeric(dfb["cantidad"], errors="coerce") if "cantidad" in dfb else pd.Series(0, index=dfb.index)
+
+    # Producción:
+    #  - si 'tipo' es exactamente 'produccion' (normalizado), o
+    #  - si 'tipo' está vacío o distinto de interrupción/novedad Y (hay OP o cantidad>0)
+    is_produccion_tipo = dfb["tipo_norm"].eq("produccion")
+    is_produccion_heur = (~is_interrup & ~is_novedad) & (op_nonempty | (cant_num.fillna(0) > 0))
+    is_produccion = is_produccion_tipo | is_produccion_heur
+
+    # Debug: ver qué tipos llegaron
+    st.caption("Tipos detectados (normalizados): " + ", ".join(sorted(dfb["tipo_norm"].fillna("").unique().tolist())))
 
     tab_int, tab_prod = st.tabs(["⛔ Interrupciones", "🏭 Producción"])
 
     # ============= Pestaña: Interrupciones =============
     with tab_int:
-        dfi = df_base.copy()
-        if "tipo" in dfi.columns:
-            tnorm = _norm_tipo(dfi["tipo"])
-            dfi = dfi[tnorm.str.contains("interrup", na=False)]
+        dfi = dfb[is_interrup].copy()
 
-        # Filtros propios de interrupciones (en base al subset)
+        # Filtros propios
         cold1, cold2, cold3 = st.columns(3)
         with cold1:
             lineas_i = st.multiselect("Líneas", sorted(dfi["linea"].dropna().unique().tolist()) if "linea" in dfi else [])
@@ -590,13 +605,9 @@ elif st.session_state.page == "dashboard":
 
     # ============= Pestaña: Producción (OP) =============
     with tab_prod:
-        dfp = df_base.copy()
-        if "tipo" in dfp.columns:
-            tnorm_p = _norm_tipo(dfp["tipo"])
-            # Coincide con 'produccion' (normalizado desde 'Producción'/'produccion')
-            dfp = dfp[tnorm_p.str.contains(r"\bproduccion\b", na=False)]
+        dfp = dfb[is_produccion].copy()
 
-        # Filtros propios de producción
+        # Filtros propios
         colp1, colp2, colp3 = st.columns(3)
         with colp1:
             lineas_p = st.multiselect("Líneas", sorted(dfp["linea"].dropna().unique().tolist()) if "linea" in dfp else [])
@@ -613,7 +624,6 @@ elif st.session_state.page == "dashboard":
                 return df[df[col].isin(vals)]
             return df
 
-        # Parseo cantidades
         def _num_or_none(s):
             s = (s or "").strip().replace(",", ".")
             if not s:
@@ -628,48 +638,41 @@ elif st.session_state.page == "dashboard":
         if (cmin_str and cmin is None) or (cmax_str and cmax is None):
             st.warning("Cantidad mínima/máxima inválida. Usá números (ej: 100 o 100.5).")
 
-        # Aplicar filtros
         dfp = _apply_in(dfp, "linea", lineas_p)
         dfp = _apply_in(dfp, "usuario", usuarios_p)
         dfp = _apply_in(dfp, "componente", componentes_p)
         dfp = _apply_in(dfp, "op", ops_p)
 
         if cmin is not None and "cantidad" in dfp.columns:
-            dfp = dfp[pd.to_numeric(dfp["cantidad"], errors="coerce") >= cmin]
+            dfp = dfp[pd.to_numeric(dfp["cantidad"], errors="coerce").fillna(0) >= cmin]
         if cmax is not None and "cantidad" in dfp.columns:
-            dfp = dfp[pd.to_numeric(dfp["cantidad"], errors="coerce") <= cmax]
+            dfp = dfp[pd.to_numeric(dfp["cantidad"], errors="coerce").fillna(0) <= cmax]
 
         # KPIs Producción
-        total_regs = int(dfp.shape[0])
-        total_cant = float(pd.to_numeric(dfp.get("cantidad", pd.Series(dtype=float)), errors="coerce").fillna(0).sum())
+        total_registros_p = int(dfp.shape[0])
+        total_cantidad_p  = float(pd.to_numeric(dfp.get("cantidad", pd.Series(dtype=float)), errors="coerce").fillna(0).sum())
 
         kp1, kp2 = st.columns(2)
         with kp1:
             st.markdown('<div class="kpi-card"><div class="kpi-title">Registros de Producción</div>'
-                        f'<div class="kpi-value">{total_regs}</div></div>', unsafe_allow_html=True)
+                        f'<div class="kpi-value">{total_registros_p}</div></div>', unsafe_allow_html=True)
         with kp2:
             st.markdown('<div class="kpi-card"><div class="kpi-title">Cantidad total</div>'
-                        f'<div class="kpi-value">{total_cant:.2f}</div></div>', unsafe_allow_html=True)
+                        f'<div class="kpi-value">{total_cantidad_p:.0f}</div></div>', unsafe_allow_html=True)
 
         # Tabla Producción
         st.subheader("Tabla de producción (OP)")
         if dfp.empty:
-            st.info("No hay registros de Producción para los filtros actuales. Verificá que en la BD el campo 'tipo' llegue como 'Producción'/'produccion'.")
+            st.info("No hay registros de Producción para los filtros actuales.")
         else:
-            cols_p = ["id", "fecha_registro", "linea", "usuario", "tipo", "op",
-                      "cantidad", "componente", "motivo", "comentario", "registrado_por"]
+            cols_p = ["id", "fecha_registro", "linea", "usuario", "op", "cantidad",
+                      "componente", "motivo", "comentario", "registrado_por"]
             cols_p = [c for c in cols_p if c in dfp.columns]
             st.dataframe(dfp[cols_p], use_container_width=True, height=420)
             csv_p = dfp[cols_p].to_csv(index=False).encode("utf-8-sig")
             st.download_button("⬇️ Descargar CSV (Producción)", data=csv_p,
                                file_name="produccion.csv", mime="text/csv",
                                use_container_width=True)
-
-    st.divider()
-    col_bk1, col_bk2 = st.columns(2)
-    with col_bk1:
-        if st.button("⬅️ Volver al inicio", use_container_width=True):
-            go_to("linea")
 
 # 12) Confirmación (overlay arriba, sin fondo gris)
 elif st.session_state.page == "confirmacion":
