@@ -713,11 +713,7 @@ elif st.session_state.page == "confirmacion":
             <div class="mp-kv"><div class="k">Comentario</div><div class="v">{d.get('comentario','-')}</div></div>
           </div>
           <div class="mp-actions">
-            <a class="btn btn-primary"
-               href="?action=home"
-               onclick="try{document.querySelector('.mp-overlay')?.remove();}catch(e){}">
-               Registrar otro
-            </a>
+            <a class="btn btn-primary" href="?action=home">Registrar otro</a>
           </div>
           <div class="mp-muted">Podés cerrar esta ventana o continuar con las opciones.</div>
         </div>
