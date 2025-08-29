@@ -718,7 +718,7 @@ elif st.session_state.page == "confirmacion":
                onclick="try{document.querySelector('.mp-overlay')?.remove();}catch(e){}">
                Registrar otro
             </a>
-           </div>
+          </div>
           <div class="mp-muted">Podés cerrar esta ventana o continuar con las opciones.</div>
         </div>
       </div>
