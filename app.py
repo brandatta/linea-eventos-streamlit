@@ -272,7 +272,8 @@ elif st.session_state.page == "produccion":
     label_map = {op: f"{op} - {df_ops.loc[df_ops['OP']==op, 'ItemName'].iloc[0]}" for op in ops} if not df_ops.empty else {}
     op_sel = st.selectbox("OP", [""] + ops, format_func=lambda x: label_map.get(x, x))
 
-    cant = st.number_input("Cantidad", min_value=0.0, step=1.0, value=0.0)
+    # 👉 Cantidad como texto (el usuario escribe el número)
+    cant_str = st.text_input("Cantidad", placeholder="Ej: 1200")
     obs = st.text_area("Observación", placeholder="Detalle, lote, etc.", height=100)
 
     c_sp, c_btn = st.columns([3, 1])
@@ -280,6 +281,13 @@ elif st.session_state.page == "produccion":
         if st.button("Confirmar", use_container_width=True):
             if not op_sel:
                 st.error("Elegí una OP para continuar.")
+                st.stop()
+
+            # Validar que la cantidad sea número (admite coma o punto)
+            try:
+                cant = float((cant_str or "").strip().replace(",", "."))
+            except Exception:
+                st.error("⛔ Cantidad inválida. Escribí un número (ej: 1200 o 1200.5).")
                 st.stop()
 
             # Buscar ItemName correspondiente a la OP seleccionada
