@@ -460,21 +460,21 @@ elif st.session_state.page == "ticket":
         if st.button("Cancelar", use_container_width=True):
             reset_to_home()
 
-# 11) Dashboards segregados
+# 11) Dashboard (listar y filtrar eventos)
 elif st.session_state.page == "dashboard":
     clear_overlay()
-    st.header("📊 Dashboards")
+    st.header("📊 Dashboard de eventos")
 
-    # Cargar opciones de filtros
+    # Cargar opciones para filtros
     try:
         opts = fetch_distinct_campos()
     except Exception as e:
         st.error(f"No se pudieron cargar opciones de filtros: {e}")
         opts = {"linea": [], "usuario": [], "motivo": [], "componente": [], "tipo": [], "op": []}
 
-    tab_int, tab_ops = st.tabs(["🛑 Interrupciones", "🏷️ Producción (OPs)"])
+    tab_int, tab_ops = st.tabs(["Interrupciones", "Producción (OPs)"])
 
-    # ------------------------- TAB: INTERRUPCIONES -------------------------
+    # --------------------------- TAB: INTERRUPCIONES ---------------------------
     with tab_int:
         colf1, colf2, colf3 = st.columns(3)
         with colf1:
@@ -484,25 +484,29 @@ elif st.session_state.page == "dashboard":
         with colf3:
             limit_i = st.number_input("Límite de filas", 100, 100000, 5000, step=100, key="i_limit")
 
-        c1, c2, c3 = st.columns(3)
-        with c1:
+        # Tipos disponibles para interrupciones (excluimos 'produccion' si está)
+        tipos_posibles = [t for t in opts.get("tipo", []) if str(t).lower() != "produccion"]
+
+        cold1, cold2, cold3 = st.columns(3)
+        with cold1:
             lineas_i = st.multiselect("Líneas", opts.get("linea", []), key="i_lineas")
-        with c2:
+            tipos_i = st.multiselect("Tipos", tipos_posibles, default=tipos_posibles, key="i_tipos")
+        with cold2:
             usuarios_i = st.multiselect("Usuarios", opts.get("usuario", []), key="i_usuarios")
             motivos_i = st.multiselect("Motivos", opts.get("motivo", []), key="i_motivos")
-        with c3:
+        with cold3:
             componentes_i = st.multiselect("Componentes", opts.get("componente", []), key="i_comp")
 
         if st.button("Actualizar interrupciones", use_container_width=True, key="i_refresh"):
             st.cache_data.clear()
 
-        # Data
+        # Cargar datos: solo interrupciones/novedades (no producción)
         try:
             dfi = fetch_eventos(
                 fecha_desde=fecha_desde_i if isinstance(fecha_desde_i, datetime.date) else None,
                 fecha_hasta=fecha_hasta_i if isinstance(fecha_hasta_i, datetime.date) else None,
                 lineas=lineas_i or None,
-                tipos=["interrupcion"],   # 🔒 forzamos interrupciones
+                tipos=tipos_i or None,
                 usuarios=usuarios_i or None,
                 motivos=motivos_i or None,
                 componentes=componentes_i or None,
@@ -516,57 +520,75 @@ elif st.session_state.page == "dashboard":
             dfi = pd.DataFrame()
 
         # KPIs
-        ci1, ci2, ci3, ci4 = st.columns(4)
-        total_i = int(dfi.shape[0]) if not dfi.empty else 0
-        min_i = int(pd.to_numeric(dfi.get("minutos", pd.Series(dtype=float)), errors="coerce").fillna(0).sum()) if not dfi.empty else 0
-        motivos_unicos = dfi["motivo"].nunique() if not dfi.empty and "motivo" in dfi else 0
-        lineas_unicas = dfi["linea"].nunique() if not dfi.empty and "linea" in dfi else 0
+        c_k1, c_k2, c_k3, c_k4 = st.columns(4)
+        total_eventos = int(dfi.shape[0]) if not dfi.empty else 0
+        total_minutos = int(dfi["minutos"].fillna(0).sum()) if not dfi.empty and "minutos" in dfi else 0
+        interrupciones = int((dfi["tipo"] == "interrupcion").sum()) if not dfi.empty and "tipo" in dfi else 0
+        novedades = int((dfi["tipo"] == "novedad").sum()) if not dfi.empty and "tipo" in dfi else 0
 
-        with ci1:
-            st.markdown(f'<div class="kpi-card"><div class="kpi-title">Eventos</div><div class="kpi-value">{total_i}</div></div>', unsafe_allow_html=True)
-        with ci2:
-            st.markdown(f'<div class="kpi-card"><div class="kpi-title">Minutos (suma)</div><div class="kpi-value">{min_i}</div></div>', unsafe_allow_html=True)
-        with ci3:
-            st.markdown(f'<div class="kpi-card"><div class="kpi-title">Motivos únicos</div><div class="kpi-value">{motivos_unicos}</div></div>', unsafe_allow_html=True)
-        with ci4:
-            st.markdown(f'<div class="kpi-card"><div class="kpi-title">Líneas</div><div class="kpi-value">{lineas_unicas}</div></div>', unsafe_allow_html=True)
+        with c_k1:
+            st.markdown('<div class="kpi-card"><div class="kpi-title">Total eventos</div>'
+                        f'<div class="kpi-value">{total_eventos}</div></div>', unsafe_allow_html=True)
+        with c_k2:
+            st.markdown('<div class="kpi-card"><div class="kpi-title">Minutos (suma)</div>'
+                        f'<div class="kpi-value">{total_minutos}</div></div>', unsafe_allow_html=True)
+        with c_k3:
+            st.markdown('<div class="kpi-card"><div class="kpi-title">Interrupciones</div>'
+                        f'<div class="kpi-value">{interrupciones}</div></div>', unsafe_allow_html=True)
+        with c_k4:
+            st.markdown('<div class="kpi-card"><div class="kpi-title">Novedades</div>'
+                        f'<div class="kpi-value">{novedades}</div></div>', unsafe_allow_html=True)
 
-        # Gráfico: minutos por línea
+        # —— Pie: minutos de paro por línea (solo interrupciones) ——
         st.subheader("Minutos de paro por línea")
         if dfi.empty:
-            st.info("No hay datos para graficar.")
+            st.info("No hay datos para graficar con los filtros actuales.")
         else:
             df_g = dfi.copy()
             df_g["minutos"] = pd.to_numeric(df_g["minutos"], errors="coerce").fillna(0)
-            df_pie = df_g.groupby("linea", as_index=False)["minutos"].sum()
+            df_pie = df_g[df_g["tipo"] == "interrupcion"].groupby("linea", as_index=False)["minutos"].sum()
+
             if df_pie.empty or df_pie["minutos"].sum() == 0:
-                st.info("No hay minutos de interrupción para graficar.")
+                st.info("No hay minutos de interrupción para graficar con los filtros actuales.")
             else:
                 import plotly.express as px
-                fig = px.pie(df_pie, names="linea", values="minutos", hole=0.4,
-                             title="Distribución de minutos de paro por línea")
+                fig = px.pie(
+                    df_pie,
+                    names="linea",
+                    values="minutos",
+                    hole=0.4,
+                    title="Distribución de minutos de paro por línea"
+                )
                 fig.update_traces(textposition="inside", texttemplate="%{label}<br>%{percent:.1%} (%{value}m)")
                 fig.update_layout(margin=dict(l=0, r=0, t=40, b=0), height=300, width=300)
+
                 c_left, c_mid, c_right = st.columns([1, 1, 1])
                 with c_mid:
                     st.plotly_chart(fig, use_container_width=False)
 
-        # Tabla
+        # Tabla interrupciones
         st.subheader("Tabla de interrupciones")
         if dfi.empty:
             st.info("No hay datos para los filtros actuales.")
         else:
-            cols_i = ["id", "fecha_registro", "linea", "usuario", "tipo",
-                      "motivo", "submotivo", "componente", "hora_inicio",
-                      "hora_fin", "minutos", "comentario", "registrado_por"]
-            cols_i = [c for c in cols_i if c in dfi.columns]
-            st.dataframe(dfi[cols_i], use_container_width=True, height=420)
-            csv_i = dfi[cols_i].to_csv(index=False).encode("utf-8-sig")
-            st.download_button("⬇️ Descargar CSV (Interrupciones)", data=csv_i,
-                               file_name="interrupciones.csv", mime="text/csv",
-                               use_container_width=True)
+            cols_order_i = ["id", "fecha_registro", "linea", "usuario", "tipo",
+                            "motivo", "submotivo", "componente", "hora_inicio",
+                            "hora_fin", "minutos", "comentario", "registrado_por"]
+            cols_order_i = [c for c in cols_order_i if c in dfi.columns]
+            st.dataframe(dfi[cols_order_i], use_container_width=True, height=420)
 
-    # --------------------------- TAB: PRODUCCIÓN (OPs) ---------------------------
+            csv_i = dfi[cols_order_i].to_csv(index=False).encode("utf-8-sig")
+            st.download_button(
+                "⬇️ Descargar CSV (Interrupciones)",
+                data=csv_i,
+                file_name="interrupciones.csv",
+                mime="text/csv",
+                use_container_width=True
+            )
+
+        st.divider()
+
+    # --------------------------- TAB: PRODUCCIÓN (solo registros de produccion) ---------------------------
     with tab_ops:
         colf1, colf2, colf3 = st.columns(3)
         with colf1:
@@ -603,13 +625,13 @@ elif st.session_state.page == "dashboard":
         cmin = _to_number_or_none(cantidad_min_str)
         cmax = _to_number_or_none(cantidad_max_str)
 
-        # Data
+        # Data: SOLO tipo produccion
         try:
             dfp = fetch_eventos(
                 fecha_desde=fecha_desde_p if isinstance(fecha_desde_p, datetime.date) else None,
                 fecha_hasta=fecha_hasta_p if isinstance(fecha_hasta_p, datetime.date) else None,
                 lineas=lineas_p or None,
-                tipos=["produccion"],        # 🔒 forzamos producción
+                tipos=["produccion"],        # 🔒 SOLO registros de produccion
                 usuarios=usuarios_p or None,
                 motivos=None,
                 componentes=componentes_p or None,
@@ -622,7 +644,7 @@ elif st.session_state.page == "dashboard":
             st.error(f"Error consultando producción: {e}")
             dfp = pd.DataFrame()
 
-        # KPIs
+        # KPIs producción
         cp1, cp2, cp3, cp4 = st.columns(4)
         total_p = int(dfp.shape[0]) if not dfp.empty else 0
         suma_cant = float(pd.to_numeric(dfp.get("cantidad", pd.Series(dtype=float)), errors="coerce").fillna(0).sum()) if not dfp.empty else 0
@@ -630,7 +652,7 @@ elif st.session_state.page == "dashboard":
         items_unicos = dfp["componente"].nunique() if not dfp.empty and "componente" in dfp else 0
 
         with cp1:
-            st.markdown(f'<div class="kpi-card"><div class="kpi-title">Registros</div><div class="kpi-value">{total_p}</div></div>', unsafe_allow_html=True)
+            st.markdown(f'<div class="kpi-card"><div class="kpi-title">Registros producción</div><div class="kpi-value">{total_p}</div></div>', unsafe_allow_html=True)
         with cp2:
             st.markdown(f'<div class="kpi-card"><div class="kpi-title">Cantidad total</div><div class="kpi-value">{suma_cant:g}</div></div>', unsafe_allow_html=True)
         with cp3:
@@ -638,41 +660,28 @@ elif st.session_state.page == "dashboard":
         with cp4:
             st.markdown(f'<div class="kpi-card"><div class="kpi-title">Items únicos</div><div class="kpi-value">{items_unicos}</div></div>', unsafe_allow_html=True)
 
-        # Gráfico: Top OPs por cantidad
-        st.subheader("Top OPs por cantidad registrada")
-        if dfp.empty:
-            st.info("No hay datos para graficar.")
-        else:
-            dfb = dfp.copy()
-            dfb["cantidad"] = pd.to_numeric(dfb["cantidad"], errors="coerce").fillna(0)
-            top = (dfb.groupby("op", as_index=False)["cantidad"].sum()
-                       .sort_values("cantidad", ascending=False)
-                       .head(10))
-            if top.empty:
-                st.info("No hay cantidades para graficar.")
-            else:
-                import plotly.express as px
-                fig2 = px.bar(top, x="op", y="cantidad", title="Top 10 OPs por cantidad (suma)")
-                fig2.update_layout(margin=dict(l=0, r=0, t=40, b=0), height=320)
-                st.plotly_chart(fig2, use_container_width=True)
-
-        # Tabla
+        # Tabla producción
         st.subheader("Tabla de producción (OPs)")
         if dfp.empty:
-            st.info("No hay datos para los filtros actuales.")
+            st.info("No hay datos de producción con los filtros actuales.")
         else:
-            cols_p = ["id", "fecha_registro", "linea", "usuario", "tipo", "op",
+            cols_p = ["id", "fecha_registro", "linea", "usuario", "op",
                       "cantidad", "componente", "comentario", "registrado_por"]
             cols_p = [c for c in cols_p if c in dfp.columns]
             st.dataframe(dfp[cols_p], use_container_width=True, height=420)
+
             csv_p = dfp[cols_p].to_csv(index=False).encode("utf-8-sig")
-            st.download_button("⬇️ Descargar CSV (OPs)", data=csv_p,
-                               file_name="produccion_ops.csv", mime="text/csv",
+            st.download_button("⬇️ Descargar CSV (Producción)", data=csv_p,
+                               file_name="produccion.csv", mime="text/csv",
                                use_container_width=True)
 
-    st.divider()
-    if st.button("⬅️ Volver al inicio", use_container_width=True, key="dash_back"):
-        go_to("linea")
+        st.divider()
+
+    # Botón volver (común a Dashboard)
+    col_bk1, col_bk2 = st.columns(2)
+    with col_bk1:
+        if st.button("⬅️ Volver al inicio", use_container_width=True, key="dash_back"):
+            go_to("linea")
 
 # 12) Confirmación (overlay arriba, sin fondo gris)
 elif st.session_state.page == "confirmacion":
