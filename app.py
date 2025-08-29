@@ -183,17 +183,11 @@ def clear_overlay():
         pass
 
 def reset_to_home():
-    # —— FIX: preservar la referencia del slot para poder vaciar el iframe viejo ——
-    old_slot = st.session_state.get('overlay_slot', None)
-    if old_slot:
-        try:
-            old_slot.empty()
-        except Exception:
-            pass
-    st.session_state.clear()          # limpia el estado, pero preservamos el slot
-    st.session_state.overlay_slot = old_slot if old_slot else st.empty()
+    clear_overlay()
+    st.session_state.clear()
     st.session_state.page = 'linea'
     st.session_state.data = {}
+    st.session_state.overlay_slot = st.empty()
 
 init_state()
 
@@ -278,7 +272,7 @@ elif st.session_state.page == "produccion":
     label_map = {op: f"{op} - {df_ops.loc[df_ops['OP']==op, 'ItemName'].iloc[0]}" for op in ops} if not df_ops.empty else {}
     op_sel = st.selectbox("OP", [""] + ops, format_func=lambda x: label_map.get(x, x))
 
-    # Cantidad como texto (el usuario escribe el número)
+    # 👉 Cantidad como texto (el usuario escribe el número)
     cant_str = st.text_input("Cantidad", placeholder="Ej: 1200")
     obs = st.text_area("Observación", placeholder="Detalle, lote, etc.", height=100)
 
@@ -695,7 +689,6 @@ elif st.session_state.page == "confirmacion":
           border: 1px solid rgba(0,0,0,0.08);
           background: #fff; color: #111; font-size: 0.9rem;
           min-width: 160px;
-          cursor: pointer;
         }}
         .btn-primary {{ background: #2E7D32; color: #fff; border: none; }}
         .mp-muted {{ color: #666; font-size: 0.85rem; margin-top: 8px; }}
@@ -722,9 +715,7 @@ elif st.session_state.page == "confirmacion":
           <div class="mp-actions">
             <a class="btn btn-primary"
                href="?action=home"
-               onclick="try{document.querySelector('.mp-overlay').style.display='none';}catch(e){}">
-               Registrar otro
-            </a>
+               onclick="try{{document.querySelector('.mp-overlay').style.display='none';}}catch(e){{}}">Registrar otro</a>
           </div>
           <div class="mp-muted">Podés cerrar esta ventana o continuar con las opciones.</div>
         </div>
