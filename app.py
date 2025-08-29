@@ -28,7 +28,7 @@ st.markdown("""
 @st.cache_data(show_spinner=False)
 def get_logo_b64(path="logorelleno.png"):
     try:
-        with open(path, "RB") as f:
+        with open(path, "rb") as f:
             return base64.b64encode(f.read()).decode("utf-8")
     except Exception:
         return None
@@ -52,7 +52,6 @@ def fetch_ops():
     try:
         q = 'SELECT DISTINCT OP, ItemName FROM template_op WHERE OP IS NOT NULL AND OP<>"" ORDER BY OP;'
         df = pd.read_sql(q, conn)
-        # Normalizamos tipos por si vienen numéricos
         df["OP"] = df["OP"].astype(str)
         df["ItemName"] = df["ItemName"].astype(str)
         return df
@@ -61,10 +60,10 @@ def fetch_ops():
 
 def insertar_evento(data: dict):
     """
-    Inserta en la tabla 'eventos' incluyendo columna 'op'.
-    - En Producción guardamos:
-        tipo='produccion', componente=ItemName, op=OP,
-        start/end/minutos = NULL, submotivo=NULL
+    Inserta en la tabla 'eventos' incluyendo 'op' y 'cantidad'.
+    - En Producción:
+        tipo='produccion', componente=ItemName, op=OP, cantidad=valor,
+        start/end/minutos=None, submotivo=None
     """
     conn = get_connection()
     try:
@@ -72,8 +71,8 @@ def insertar_evento(data: dict):
         sql = """
             INSERT INTO eventos
             (linea, usuario, tipo, motivo, submotivo, componente,
-             hora_inicio, hora_fin, minutos, comentario, registrado_por, op)
-            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+             hora_inicio, hora_fin, minutos, cantidad, comentario, registrado_por, op)
+            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
         """
         valores = (
             data.get("linea"),
@@ -85,9 +84,10 @@ def insertar_evento(data: dict):
             data.get("start") if data.get("start") else None,
             data.get("end") if data.get("end") else None,
             data.get("minutos"),
+            data.get("cantidad"),     # <<--- cantidad va en su columna
             data.get("comentario"),
             data.get("user"),
-            data.get("op"),  # <<--- nuevo
+            data.get("op"),           # <<--- OP en su columna
         )
         cur.execute(sql, valores)
         conn.commit()
@@ -123,7 +123,7 @@ def fetch_eventos(fecha_desde=None, fecha_hasta=None,
     try:
         base = """
             SELECT id, fecha_registro, linea, usuario, tipo, motivo, submotivo, componente,
-                   hora_inicio, hora_fin, minutos, comentario, registrado_por, op
+                   hora_inicio, hora_fin, minutos, cantidad, comentario, registrado_por, op
             FROM eventos
             WHERE 1=1
         """
@@ -259,7 +259,6 @@ elif st.session_state.page == "produccion":
         st.error(f"No se pudieron cargar las OP desde MySQL: {e}")
         ops, df_ops = [], pd.DataFrame(columns=["OP","ItemName"])
 
-    # Muestra "OP - ItemName" en el dropdown para que sea más claro
     label_map = {op: f"{op} - {df_ops.loc[df_ops['OP']==op, 'ItemName'].iloc[0]}" for op in ops} if not df_ops.empty else {}
     op_sel = st.selectbox("OP", [""] + ops, format_func=lambda x: label_map.get(x, x))
 
@@ -273,23 +272,24 @@ elif st.session_state.page == "produccion":
                 st.error("Elegí una OP para continuar.")
                 st.stop()
 
-            # Buscar ItemName correspondiente a la OP seleccionada
             itemname = None
             if not df_ops.empty:
                 row = df_ops[df_ops["OP"] == op_sel]
                 if not row.empty:
                     itemname = row["ItemName"].iloc[0]
 
-            # Mapear a la estructura de 'eventos'
+            # Guardamos en el estado, para insertar luego
             st.session_state.data.update({
-                "op": op_sel,                      # <<--- guardar OP en su propia columna
-                "componente": itemname,            # <<--- ItemName va en 'componente'
+                "tipo": "produccion",
+                "op": op_sel,                  # OP en su columna
+                "cantidad": cant,              # cantidad en su columna
+                "componente": itemname,        # ItemName -> componente
                 "motivo": f"OP: {op_sel}",
                 "submotivo": None,
                 "start": None,
                 "end": None,
                 "minutos": None,
-                "comentario": f"Cantidad: {cant}. Obs: {obs}",
+                "comentario": obs,             # solo la observación
                 "timestamp": str(datetime.datetime.now())
             })
             go_to("ticket")
@@ -419,6 +419,7 @@ elif st.session_state.page == "ticket":
         st.write(f"**Línea:** {data.get('linea','-')}")
         st.write(f"**Tipo:** {data.get('tipo','-')}")
         st.write(f"**OP:** {data.get('op','-')}")
+        st.write(f"**Cantidad:** {data.get('cantidad','-')}")
     with cols[1]:
         st.write(f"**Motivo:** {data.get('motivo','-')}")
         st.write(f"**Componente (ItemName):** {data.get('componente','-')}")
@@ -541,8 +542,9 @@ elif st.session_state.page == "dashboard":
         st.info("No hay datos para los filtros actuales.")
     else:
         cols_order = ["id", "fecha_registro", "linea", "usuario", "tipo", "op",
-                      "motivo", "submotivo", "componente", "hora_inicio",
-                      "hora_fin", "minutos", "comentario", "registrado_por"]
+                      "cantidad", "motivo", "submotivo", "componente",
+                      "hora_inicio", "hora_fin", "minutos",
+                      "comentario", "registrado_por"]
         cols_order = [c for c in cols_order if c in df.columns]
         df = df[cols_order]
         st.dataframe(df, use_container_width=True, height=420)
@@ -661,6 +663,7 @@ elif st.session_state.page == "confirmacion":
             <div class="mp-kv"><div class="k">Línea</div><div class="v">{d.get('linea','-')}</div></div>
             <div class="mp-kv"><div class="k">Tipo</div><div class="v">{d.get('tipo','-')}</div></div>
             <div class="mp-kv"><div class="k">OP</div><div class="v">{d.get('op','-')}</div></div>
+            <div class="mp-kv"><div class="k">Cantidad</div><div class="v">{d.get('cantidad','-')}</div></div>
             <div class="mp-kv"><div class="k">Motivo</div><div class="v">{d.get('motivo','-')}</div></div>
             <div class="mp-kv"><div class="k">Componente</div><div class="v">{d.get('componente','-')}</div></div>
             <div class="mp-kv"><div class="k">Minutos</div><div class="v">{d.get('minutos','-')}</div></div>
